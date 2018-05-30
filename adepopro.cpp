@@ -4,13 +4,13 @@
 - Author: S. Kramm - 2018
 - Licence: GPL v3.0
 - See https://github.com/skramm/adepopro
+
+Command-line option: -s : module report will be separated by semester (encoded as 5th character of module name)
 */
 
 #include <vector>
 #include <map>
 #include <set>
-//#include <algorithm>
-//#include <functional>
 #include <cassert>
 //#include <iomanip>
 #include <string>
@@ -100,11 +100,11 @@ private:
 public:
 	explicit Triplet()
 	{
-		_vol[0] = _vol[1] = _vol[2] = 0.0f;
+		clear();
 	}
 	Triplet( EN_Type ty, float duration )
 	{
-		_vol[0] = _vol[1] = _vol[2] = 0.0f;
+		clear();
 		_vol[ty] = duration;
 	}
 	Triplet& operator += ( const Triplet& t )
@@ -123,12 +123,20 @@ public:
 		f << tri._vol[0] << g_ocs << tri._vol[1] << g_ocs << tri._vol[2] << g_ocs << tri.sum();
 		return f;
 	}
+private:
+	void clear()
+	{
+		_vol[0] = _vol[1] = _vol[2] = 0.0f;
+	}
 };
 
 /// Returns type of course and course code from string
 /**
 The course code embeds the type: CM/TD/TP, coded as last character.
-For example: \c ABC1234D
+For example:
+ - \c ABC1234D => D means TD
+ - \c ABC1234C => C means CM
+ - \c ABC1234P => P means TP
 */
 std::pair<EN_Type,std::string>
 getTypeModule( std::string in )
@@ -200,6 +208,27 @@ typedef
 	ResourcesVolume;
 
 //-------------------------------------------------------------------
+void
+process(
+	const ResourcesVolume&              ressVol,  ///< input data
+	std::map<std::string,ResourceData>& data      ///< output data
+)
+{
+		for( const auto& elem: ressVol )
+		{
+			Triplet tot;
+			size_t nb = 0;
+			for( const auto& elem2: elem.second )
+			{
+				tot += elem2.second;
+				nb++;
+			}
+
+			data[elem.first]._volume = tot;
+			data[elem.first]._nbOtherResources = nb;
+		}
+}
+//-------------------------------------------------------------------
 struct Results
 {
 	std::map<std::string,ResourceData> _instructorData;  ///< key: instructor name
@@ -248,32 +277,22 @@ struct Results
 		{
 			for( const auto& sem: elem.second )
 				_instructorData[elem.first].incrementDays( sem.second.size() );
+			_instructorData[elem.first]._nbWeeks = elem.second.size();
 		}
 
 		for( const auto& elem: _moduleDays )
 		{
 			for( const auto& sem: elem.second )
 				_moduleData[elem.first].incrementDays( sem.second.size() );
+			_moduleData[elem.first]._nbWeeks = elem.second.size();
 		}
 
-		for( const auto& pr: _prof_mod )
-		{
-//			auto prof = pr.first;
-			Triplet tot;
-			size_t nbMod = 0;
-			for( const auto& mod: pr.second )
-			{
-				tot += mod.second;
-				nbMod++;
-			}
-
-			_instructorData[pr.first]._volume = tot;
-			_instructorData[pr.first]._nbOtherResources = nbMod;
-		}
+		process( _prof_mod, _instructorData );
+		process( _mod_prof, _moduleData );
 	}
 
 /// write report of Modules / Instructor
-	void writeReport_MI( std::string fn )
+	void writeReport_MI( std::string fn, bool sortBySemester )
 	{
 		auto file = openFile( fn, "Bilan module/enseignant" );
 
@@ -282,9 +301,9 @@ struct Results
 		{
 			auto module = mod.first;
 			auto semestre = module.substr( 4, 1 ).at(0);
-			if( current_semestre != semestre )
+			if( current_semestre != semestre && sortBySemester )
 			{
-				file << "\n *** SEMESTRE *** " << semestre << '\n';
+				file << "\n *** SEMESTRE " << semestre << " *** \n\n";
 				current_semestre = semestre;
 			}
 			file << "- module:" << module << '\n';
@@ -302,12 +321,11 @@ struct Results
 	{
 		auto file = openFile( fn, "Bilan enseignant/module" );
 
-		for( const auto& pr: _prof_mod )
+		for( const auto& inst: _prof_mod )
 		{
-			auto prof = pr.first;
-			file << "\nEnseignant:" << prof << '\n';
+			file << "\nEnseignant:" << inst.first << '\n';
 			Triplet tot;
-			for( const auto& mod: pr.second )
+			for( const auto& mod: inst.second )
 			{
 				file << "  - module: " << mod.first << ": " <<  mod.second << '\n';
 				tot += mod.second;
@@ -318,7 +336,7 @@ struct Results
 /// write CSV data of Instructors
 	void writeCsv_I( std::string fn )
 	{
-		auto file = openFile( fn, "#Nom;Nb-jours;vol-CM;vol-TD;vol-TP;vol total;nb-modules;ratio vol. total/nb jours" );
+		auto file = openFile( fn, "#Nom;Nb-jours;Nb sem;vol. CM;vol. TD;vol. TP;vol. total;nb modules;ratio vol. total/nb jours" );
 		for( const auto& instr: _instructorData )
 		{
 			auto instrData = instr.second;
@@ -331,7 +349,7 @@ struct Results
 /// write CSV data of Modules
 	void writeCsv_M( std::string fn )
 	{
-		auto file = openFile( fn, "#Module" );
+		auto file = openFile( fn, "#Module;Nb-jours;Nb sem;vol. CM;vol. TD;vol. TP;vol. total;nb enseignants;ratio vol. total/nb jours" );
 		for( const auto& module: _moduleData )
 		{
 			auto modData = module.second;
@@ -343,10 +361,20 @@ struct Results
 
 };
 //-------------------------------------------------------------------
+/// see adepopro.cpp
 int main( int argc, char* argv[] )
 {
-	assert( argc == 2 );
-	std::string fn_in = argv[1];
+	if( argc < 2 )
+	{
+		std::cout << "usage: " << argv[0] << " <input_csv_file>\n";
+		return 1;
+	}
+	std::string fn_in = argv[argc-1];
+
+	bool sortBySemester = false;
+	if( argc > 2 )
+		if( std::string(argv[1]) == "-s" )
+			sortBySemester = true;
 
 	std::ifstream file( fn_in );
 	if( !file.is_open() )
@@ -398,7 +426,7 @@ int main( int argc, char* argv[] )
 
 	results.writeCsv_I(     "adepopro_E_"  + fn2[0] + ".csv" );
 	results.writeCsv_M(     "adepopro_M_"  + fn2[0] + ".csv" );
-	results.writeReport_MI( "adepopro_ME_" + fn2[0] + ".txt" );
+	results.writeReport_MI( "adepopro_ME_" + fn2[0] + ".txt", sortBySemester );
 	results.writeReport_IM( "adepopro_EM_" + fn2[0] + ".txt" );
 
 }
