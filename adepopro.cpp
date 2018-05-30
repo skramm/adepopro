@@ -182,7 +182,7 @@ openFile( std::string fn, std::string text )
 		throw std::runtime_error( "Error, unable to open file " + fn );
 
 	std::cout << " - génération du fichier " << fn << '\n';
-	file << text;
+	file << text << '\n';
 
 	return file;
 }
@@ -198,22 +198,19 @@ typedef
 	>
 	ResourceDays;
 
+typedef std::map<std::string,Triplet> TripletMap;
+
 /// Used to store the volume associated to resources
-typedef
-	std::map<
-		std::string,      // key1: resource 1
-		std::map<
-			std::string,  // key2: resource 2
-			Triplet
-		>
-	>
-	ResourcesVolume;
+typedef std::map<std::string,TripletMap> ResourcesVolume;
+
+/// Used to stored the data associated to a key (which can be an instructor or a course module)
+typedef	std::map<std::string,ResourceData> ResourceDataMap;
 
 //-------------------------------------------------------------------
 void
 process(
-	const ResourcesVolume&              ressVol,  ///< input data
-	std::map<std::string,ResourceData>& data      ///< output data
+	const ResourcesVolume& ressVol,  ///< input data
+	ResourceDataMap&       data      ///< output data
 )
 {
 		for( const auto& elem: ressVol )
@@ -231,10 +228,23 @@ process(
 		}
 }
 //-------------------------------------------------------------------
+void
+printCurrentElement( std::ofstream& file, const TripletMap& elem1, Triplet& bigsum, std::string elemStr )
+{
+	Triplet sum;
+	for( const auto& elem2: elem1 )
+	{
+		file << "  - " << elemStr << ": " << elem2.first << ": " << elem2.second << '\n';
+		sum += elem2.second;
+	}
+	file << "- TOTAL=" << sum << '\n';
+	bigsum += sum;
+}
+//-------------------------------------------------------------------
 struct Results
 {
-	std::map<std::string,ResourceData> _instructorData;  ///< key: instructor name
-	std::map<std::string,ResourceData> _moduleData;      ///< key: module name
+	ResourceDataMap _instructorData;  ///< key: instructor name
+	ResourceDataMap _moduleData;      ///< key: module name
 
 	ResourceDays _instructorDays;
 	ResourceDays _moduleDays;
@@ -299,68 +309,61 @@ struct Results
 		auto file = openFile( fn, "Bilan module/enseignant" );
 
 		char current_semestre = ' ';
-		for( const auto& mod: _mod_prof )
+		Triplet bigsum;
+		for( const auto& elem1: _mod_prof )
 		{
-			auto module = mod.first;
-			auto semestre = module.substr( 4, 1 ).at(0);
+			auto semestre = elem1.first.substr( 4, 1 ).at(0);
 			if( current_semestre != semestre && sortBySemester )
 			{
 				file << "\n *** SEMESTRE " << semestre << " *** \n\n";
 				current_semestre = semestre;
 			}
-			file << "- module:" << module << '\n';
-			Triplet tot;
-			for( const auto& prof: mod.second )
+
+			file << "- module:" << elem1.first << '\n';
+			printCurrentElement( file, elem1.second, bigsum, "enseignant" );
+			Triplet sum;
+			for( const auto& elem2: elem1.second )
 			{
-				file << "  - prof:" << prof.first << ": " << prof.second << '\n';
-				tot += prof.second;
+				file << "  - prof:" << elem2.first << ": " << elem2.second << '\n';
+				sum += elem2.second;
 			}
-			file << "- TOTAL=" << tot << '\n';
+			file << "- TOTAL=" << sum << '\n';
+			bigsum += sum;
 		}
+		file << "*** TOTAL GENERAL ***\n" << bigsum << '\n';
 	}
 /// write report of Instructor / Modules
 	void writeReport_IM( std::string fn )
 	{
 		auto file = openFile( fn, "Bilan enseignant/module" );
 
-		for( const auto& inst: _prof_mod )
+		Triplet bigsum;
+		for( const auto& elem1: _prof_mod )
 		{
-			file << "\nEnseignant:" << inst.first << '\n';
-			Triplet tot;
-			for( const auto& mod: inst.second )
+			file << "\nEnseignant:" << elem1.first << '\n';
+			Triplet sum;
+			for( const auto& elem2: elem1.second )
 			{
-				file << "  - module: " << mod.first << ": " <<  mod.second << '\n';
-				tot += mod.second;
+				file << "  - module: " << elem2.first << ": " <<  elem2.second << '\n';
+				sum += elem2.second;
 			}
-			file << "- TOTAL=" << tot << '\n';
+			file << "- TOTAL=" << sum << '\n';
+			bigsum += sum;
 		}
+		file << "\n*** TOTAL GENERAL ***\n" << bigsum << '\n';
 	}
 /// write CSV data of Instructors
-	void writeCsv_I( std::string fn, std::string headline )
+	void writeCsv( std::string fn, const ResourceDataMap& dataMap, std::string headline )
 	{
 		auto file = openFile( fn, headline );
-		for( const auto& instr: _instructorData )
+		for( const auto& elem: dataMap )
 		{
-			auto instrData = instr.second;
-			file << instr.first << g_ocs << instrData << g_ocs
-				<< 1.0*instrData._volume.sum() / instrData._nbDays
+			auto data = elem.second;
+			file << elem.first << g_ocs << data << g_ocs
+				<< 1.0*data._volume.sum() / data._nbDays
 				<< '\n';
 		}
 	}
-
-/// write CSV data of Modules
-	void writeCsv_M( std::string fn, std::string headline )
-	{
-		auto file = openFile( fn, headline );
-		for( const auto& module: _moduleData )
-		{
-			auto modData = module.second;
-			file << module.first << g_ocs << modData << g_ocs
-				<< 1.0*modData._volume.sum() / modData._nbDays
-				<< '\n';
-		}
-	}
-
 };
 //-------------------------------------------------------------------
 /// Describes the fields we want to read in the input file
@@ -462,10 +465,10 @@ int main( int argc, char* argv[] )
 	assert( fn2.size() > 0 );
 
 	std::string head1 = "#Nom;Nb jours;Nb sem;vol. CM;vol. TD;vol. TP;vol. total;";
-	std::string head2 = ";ratio vol. total/nb jours\n";
+	std::string head2 = ";ratio vol. total/nb jours";
 
-	results.writeCsv_I(     "adepopro_E_"  + fn2[0] + ".csv", head1 + "nb modules"     + head2 );
-	results.writeCsv_M(     "adepopro_M_"  + fn2[0] + ".csv", head1 + "nb enseignants" + head2 );
+	results.writeCsv(     "adepopro_E_"  + fn2[0] + ".csv", results._instructorData, head1 + "nb modules"     + head2 );
+	results.writeCsv(     "adepopro_M_"  + fn2[0] + ".csv", results._moduleData,     head1 + "nb enseignants" + head2 );
 	results.writeReport_MI( "adepopro_ME_" + fn2[0] + ".txt", sortBySemester );
 	results.writeReport_IM( "adepopro_EM_" + fn2[0] + ".txt" );
 
