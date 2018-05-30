@@ -156,11 +156,15 @@ getTypeModule( std::string in )
 	return std::make_pair( ty, module );
 }
 //-------------------------------------------------------------------
+/// Holds the data associated to an instructor or a course module
 struct ResourceData
 {
-	size_t      _nbDays  = 0;   ///< nb days presence
-	size_t      _nbWeeks = 0;   ///< nb weeks presence
-	Triplet     _volume;       ///< teaching volume
+	size_t      _nbDays  = 0;   ///< nb days occurency
+	size_t      _nbWeeks = 0;   ///< nb weeks occurency
+	Triplet     _volume;        ///< teaching volume
+
+/// If instructor data, this will hold the nb of modules he has been affected to
+/// If module data, this will hold the nb of instructors on this module
 	size_t      _nbOtherResources = 0;
 
 	void incrementDays( size_t n )
@@ -201,7 +205,7 @@ typedef
 typedef std::map<std::string,Triplet> TripletMap;
 
 /// Used to store the volume associated to resources
-typedef std::map<std::string,TripletMap> ResourcesVolume;
+typedef std::map<std::string,TripletMap> ResourceVolumeMap;
 
 /// Used to stored the data associated to a key (which can be an instructor or a course module)
 typedef	std::map<std::string,ResourceData> ResourceDataMap;
@@ -209,8 +213,8 @@ typedef	std::map<std::string,ResourceData> ResourceDataMap;
 //-------------------------------------------------------------------
 void
 process(
-	const ResourcesVolume& ressVol,  ///< input data
-	ResourceDataMap&       data      ///< output data
+	const ResourceVolumeMap& ressVol,  ///< input data
+	ResourceDataMap&         data      ///< output data
 )
 {
 		for( const auto& elem: ressVol )
@@ -241,7 +245,8 @@ printCurrentElement( std::ofstream& file, const TripletMap& elem1, Triplet& bigs
 	bigsum += sum;
 }
 //-------------------------------------------------------------------
-struct Results
+/// Holds all the data read from the file, along with the processing functions
+struct Data
 {
 	ResourceDataMap _instructorData;  ///< key: instructor name
 	ResourceDataMap _moduleData;      ///< key: module name
@@ -249,19 +254,19 @@ struct Results
 	ResourceDays _instructorDays;
 	ResourceDays _moduleDays;
 
-	ResourcesVolume _mod_prof;
-	ResourcesVolume _prof_mod;
+	ResourceVolumeMap _mod_prof;
+	ResourceVolumeMap _prof_mod;
 
 /// Add one event to the data
-	void addOne( std::string name, size_t num_sem, EN_WeekDay wd, const std::pair<EN_Type,std::string>& type_mod, float duration )
+	void addOne( std::string instr, size_t num_sem, EN_WeekDay wd, const std::pair<EN_Type,std::string>& type_mod, float duration )
 	{
-		assert( !name.empty() );
+		assert( !instr.empty() );
 
 		auto type   = type_mod.first;
 		auto module = type_mod.second;
 
 		{
-			auto& ref_inst = _instructorDays[name];
+			auto& ref_inst = _instructorDays[instr];
 			auto& ref_week = ref_inst[num_sem];
 			ref_week.insert( wd );
 		}
@@ -275,10 +280,10 @@ struct Results
 		auto tri = Triplet( type, duration );
 
 		auto& mod1 = _mod_prof[module];
-		auto& pr1  =  mod1[name];
+		auto& pr1  =  mod1[instr];
 		pr1 += tri;
 
-		auto& pr2  = _prof_mod[name];
+		auto& pr2  = _prof_mod[instr];
 		auto& mod2 =  pr2[module];
 		mod2 += tri;
 	}
@@ -321,17 +326,10 @@ struct Results
 
 			file << "- module:" << elem1.first << '\n';
 			printCurrentElement( file, elem1.second, bigsum, "enseignant" );
-			Triplet sum;
-			for( const auto& elem2: elem1.second )
-			{
-				file << "  - prof:" << elem2.first << ": " << elem2.second << '\n';
-				sum += elem2.second;
-			}
-			file << "- TOTAL=" << sum << '\n';
-			bigsum += sum;
 		}
-		file << "*** TOTAL GENERAL ***\n" << bigsum << '\n';
+		file << "\n*** TOTAL GENERAL ***\n" << bigsum << '\n';
 	}
+
 /// write report of Instructor / Modules
 	void writeReport_IM( std::string fn )
 	{
@@ -341,18 +339,12 @@ struct Results
 		for( const auto& elem1: _prof_mod )
 		{
 			file << "\nEnseignant:" << elem1.first << '\n';
-			Triplet sum;
-			for( const auto& elem2: elem1.second )
-			{
-				file << "  - module: " << elem2.first << ": " <<  elem2.second << '\n';
-				sum += elem2.second;
-			}
-			file << "- TOTAL=" << sum << '\n';
-			bigsum += sum;
+			printCurrentElement( file, elem1.second, bigsum, "module" );
 		}
 		file << "\n*** TOTAL GENERAL ***\n" << bigsum << '\n';
 	}
-/// write CSV data of Instructors
+
+/// write CSV data
 	void writeCsv( std::string fn, const ResourceDataMap& dataMap, std::string headline )
 	{
 		auto file = openFile( fn, headline );
@@ -420,7 +412,7 @@ int main( int argc, char* argv[] )
 	if( !file.is_open() )
 		throw std::runtime_error( "Error, unable to open file " + fn_in );
 
-	Results results;
+	Data results;
 
 	InputFormat inputFormat;
 	std::string buff;
@@ -464,11 +456,12 @@ int main( int argc, char* argv[] )
 	auto fn2 = split_string( fn_in, '.' );
 	assert( fn2.size() > 0 );
 
+// csv output file headers
 	std::string head1 = "#Nom;Nb jours;Nb sem;vol. CM;vol. TD;vol. TP;vol. total;";
 	std::string head2 = ";ratio vol. total/nb jours";
 
-	results.writeCsv(     "adepopro_E_"  + fn2[0] + ".csv", results._instructorData, head1 + "nb modules"     + head2 );
-	results.writeCsv(     "adepopro_M_"  + fn2[0] + ".csv", results._moduleData,     head1 + "nb enseignants" + head2 );
+	results.writeCsv( "adepopro_E_" + fn2[0] + ".csv", results._instructorData, head1 + "nb modules"     + head2 );
+	results.writeCsv( "adepopro_M_" + fn2[0] + ".csv", results._moduleData,     head1 + "nb enseignants" + head2 );
 	results.writeReport_MI( "adepopro_ME_" + fn2[0] + ".txt", sortBySemester );
 	results.writeReport_IM( "adepopro_EM_" + fn2[0] + ".txt" );
 
