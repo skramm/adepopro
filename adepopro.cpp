@@ -146,20 +146,20 @@ getTypeModule( std::string in )
 	return std::make_pair( ty, module );
 }
 //-------------------------------------------------------------------
-struct InstructorData
+struct ResourceData
 {
-//	std::string _name;
-	size_t      _nbDays = 0;   ///< nb days presence
+	size_t      _nbDays  = 0;   ///< nb days presence
+	size_t      _nbWeeks = 0;   ///< nb weeks presence
 	Triplet     _volume;       ///< teaching volume
-	size_t      _nbModules = 0;
+	size_t      _nbOtherResources = 0;
 
 	void incrementDays( size_t n )
 	{
 		_nbDays += n;
 	}
-	friend std::ostream& operator << ( std::ostream& f, const InstructorData& ins )
+	friend std::ostream& operator << ( std::ostream& f, const ResourceData& ins )
 	{
-		f << ins._nbDays << g_ocs << ins._volume << g_ocs << ins._nbModules;
+		f << ins._nbDays << g_ocs << ins._nbWeeks << g_ocs << ins._volume << g_ocs << ins._nbOtherResources;
 		return f;
 	}
 };
@@ -170,48 +170,66 @@ openFile( std::string fn, std::string text )
 	std::ofstream file( fn );
 	if( !file.is_open() )
 		throw std::runtime_error( "Error, unable to open file " + fn );
+
+	std::cout << " - génération du fichier " << fn << '\n';
 	file << text << '\n';
+
 	return file;
 }
-//-------------------------------------------------------------------
-struct Results
-{
-	std::map<std::string,InstructorData> _instructorData; // key: instructor name
 
+/// Used for counting on which days a resource is used
+typedef
 	std::map<
 		std::string,  // name
 		std::map<
 			size_t,   // week number
 			std::set<EN_WeekDay>
 		>
-	> _instructorWorkdays; // nb jours de présence par prof
+	>
+	ResourceDays;
 
+/// Used to store the volume associated to resources
+typedef
 	std::map<
-		std::string,      /// module
+		std::string,      // key1: resource 1
 		std::map<
-			std::string,  /// instructor
+			std::string,  // key2: resource 2
 			Triplet
 		>
-	> _mod_prof;
+	>
+	ResourcesVolume;
 
-	std::map<
-		std::string,      /// instructor
-		std::map<
-			std::string,  /// module
-			Triplet
-		>
-	> _prof_mod;
+//-------------------------------------------------------------------
+struct Results
+{
+	std::map<std::string,ResourceData> _instructorData;  ///< key: instructor name
+	std::map<std::string,ResourceData> _moduleData;      ///< key: module name
+
+	ResourceDays _instructorDays;
+	ResourceDays _moduleDays;
+
+	ResourcesVolume _mod_prof;
+	ResourcesVolume _prof_mod;
 
 /// Add one event to the data
 	void addOne( std::string name, size_t num_sem, EN_WeekDay wd, const std::pair<EN_Type,std::string>& type_mod, float duration )
 	{
 		assert( !name.empty() );
-		auto& inst = _instructorWorkdays[name];
-		auto& week = inst[num_sem];
-		week.insert( wd );
 
 		auto type   = type_mod.first;
 		auto module = type_mod.second;
+
+		{
+			auto& ref_inst = _instructorDays[name];
+			auto& ref_week = ref_inst[num_sem];
+			ref_week.insert( wd );
+		}
+
+		{
+			auto& ref_mod = _moduleDays[module];
+			auto& ref_week = ref_mod[num_sem];
+			ref_week.insert( wd );
+		}
 
 		auto tri = Triplet( type, duration );
 
@@ -226,16 +244,18 @@ struct Results
 
 	void compute()
 	{
-		for( const auto& prof: _instructorWorkdays )
+		for( const auto& elem: _instructorDays )
 		{
-//			std::cout << "-processing prof " << prof.first << '\n';
-			for( const auto& sem: prof.second )
-			{
-//				std::cout << "  -processing sem " << sem.first << '\n';
-//				for( const auto& wd: sem.second )
-					_instructorData[prof.first].incrementDays( sem.second.size() );
-			}
+			for( const auto& sem: elem.second )
+				_instructorData[elem.first].incrementDays( sem.second.size() );
 		}
+
+		for( const auto& elem: _moduleDays )
+		{
+			for( const auto& sem: elem.second )
+				_moduleData[elem.first].incrementDays( sem.second.size() );
+		}
+
 		for( const auto& pr: _prof_mod )
 		{
 //			auto prof = pr.first;
@@ -248,13 +268,13 @@ struct Results
 			}
 
 			_instructorData[pr.first]._volume = tot;
-			_instructorData[pr.first]._nbModules = nbMod;
+			_instructorData[pr.first]._nbOtherResources = nbMod;
 		}
 	}
 
-	void writeReport_ME( std::string fn )
+/// write report of Modules / Instructor
+	void writeReport_MI( std::string fn )
 	{
-		std::cout << " - génération du fichier " << fn << '\n';
 		auto file = openFile( fn, "Bilan module/enseignant" );
 
 		char current_semestre = ' ';
@@ -277,10 +297,9 @@ struct Results
 			file << "- TOTAL=" << tot << '\n';
 		}
 	}
-
-	void writeReport_EM( std::string fn )
+/// write report of Instructor / Modules
+	void writeReport_IM( std::string fn )
 	{
-		std::cout << " - génération du fichier " << fn << '\n';
 		auto file = openFile( fn, "Bilan enseignant/module" );
 
 		for( const auto& pr: _prof_mod )
@@ -296,16 +315,10 @@ struct Results
 			file << "- TOTAL=" << tot << '\n';
 		}
 	}
-
-	void writeCsv( std::string fn )
+/// write CSV data of Instructors
+	void writeCsv_I( std::string fn )
 	{
-		std::cout << " - génération du fichier " << fn << '\n';
-		std::ofstream file( fn );
-		if( !file.is_open() )
-			throw std::runtime_error( "Error, unable to open file " + fn );
-
-		file << "#Resultats:\n";
-		file << "#Nom;Nb-jours;vol-CM;vol-TD;vol-TP;vol total;nb-modules;ratio vol. total/nb jours\n";
+		auto file = openFile( fn, "#Nom;Nb-jours;vol-CM;vol-TD;vol-TP;vol total;nb-modules;ratio vol. total/nb jours" );
 		for( const auto& instr: _instructorData )
 		{
 			auto instrData = instr.second;
@@ -314,6 +327,20 @@ struct Results
 				<< '\n';
 		}
 	}
+
+/// write CSV data of Modules
+	void writeCsv_M( std::string fn )
+	{
+		auto file = openFile( fn, "#Module" );
+		for( const auto& module: _moduleData )
+		{
+			auto modData = module.second;
+			file << module.first << g_ocs << modData << g_ocs
+				<< 1.0*modData._volume.sum() / modData._nbDays
+				<< '\n';
+		}
+	}
+
 };
 //-------------------------------------------------------------------
 int main( int argc, char* argv[] )
@@ -369,9 +396,10 @@ int main( int argc, char* argv[] )
 	auto fn2 = split_string( fn_in, '.' );
 	assert( fn2.size() > 0 );
 
-	results.writeCsv(    "adepopro_" + fn2[0] + ".csv" );
-	results.writeReport_ME( "adepopro_ME_" + fn2[0] + ".txt" );
-	results.writeReport_EM( "adepopro_EM_" + fn2[0] + ".txt" );
+	results.writeCsv_I(     "adepopro_E_"  + fn2[0] + ".csv" );
+	results.writeCsv_M(     "adepopro_M_"  + fn2[0] + ".csv" );
+	results.writeReport_MI( "adepopro_ME_" + fn2[0] + ".txt" );
+	results.writeReport_IM( "adepopro_EM_" + fn2[0] + ".txt" );
 
 }
 //-------------------------------------------------------------------
