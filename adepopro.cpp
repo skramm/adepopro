@@ -56,6 +56,7 @@ split_string( const std::string &s, char delim )
 int
 getWeekNum( std::string in )
 {
+	assert( !in.empty() );
 	auto v = split_string( in, ' ' );
 	if( v.size() != 2 )
 		std::cout << "in=" << in << '\n';
@@ -66,6 +67,7 @@ getWeekNum( std::string in )
 EN_WeekDay
 getWeekDay( std::string in )
 {
+	assert( !in.empty() );
 	auto v = split_string( in, ' ' );
 	assert( v.size() == 2 );
 	auto it = g_daymap.find( v[0]  );
@@ -92,7 +94,10 @@ enum EN_Type { TY_CM, TY_TD, TY_TP };
 /// A triplet of course durations (see EN_Type)
 struct Triplet
 {
+private:
 	float _vol[3];
+
+public:
 	explicit Triplet()
 	{
 		_vol[0] = _vol[1] = _vol[2] = 0.0f;
@@ -120,11 +125,15 @@ struct Triplet
 	}
 };
 
+/// Returns type of course and course code from string
+/**
+The course code embeds the type: CM/TD/TP, coded as last character.
+For example: \c ABC1234D
+*/
 std::pair<EN_Type,std::string>
 getTypeModule( std::string in )
 {
-//	std::cout << "in=" << in << " ty=" << in.back() << '\n';
-
+	assert( in.size()>1 );
 	EN_Type ty;
 	switch( in.back() )
 	{
@@ -134,31 +143,40 @@ getTypeModule( std::string in )
 		default: assert(0);
 	}
 	std::string module = in.substr( 0, in.size()-1 );
-//	std::cout << "module=" << module << '\n';
 	return std::make_pair( ty, module );
 }
 //-------------------------------------------------------------------
-struct Instructor
+struct InstructorData
 {
 //	std::string _name;
 	size_t      _nbDays = 0;   ///< nb days presence
 	Triplet     _volume;       ///< teaching volume
 	size_t      _nbModules = 0;
 
-	void incrementDays()
+	void incrementDays( size_t n )
 	{
-		_nbDays++;
+		_nbDays += n;
 	}
-	friend std::ostream& operator << ( std::ostream& f, const Instructor& ins )
+	friend std::ostream& operator << ( std::ostream& f, const InstructorData& ins )
 	{
 		f << ins._nbDays << g_ocs << ins._volume << g_ocs << ins._nbModules;
 		return f;
 	}
 };
 //-------------------------------------------------------------------
+std::ofstream
+openFile( std::string fn, std::string text )
+{
+	std::ofstream file( fn );
+	if( !file.is_open() )
+		throw std::runtime_error( "Error, unable to open file " + fn );
+	file << text << '\n';
+	return file;
+}
+//-------------------------------------------------------------------
 struct Results
 {
-	std::map<std::string,Instructor> _instructorData; // key: name
+	std::map<std::string,InstructorData> _instructorData; // key: instructor name
 
 	std::map<
 		std::string,  // name
@@ -166,31 +184,31 @@ struct Results
 			size_t,   // week number
 			std::set<EN_WeekDay>
 		>
-	> _joursProfs; // nb jours de présence par prof
+	> _instructorWorkdays; // nb jours de présence par prof
 
 	std::map<
 		std::string,      /// module
 		std::map<
-			std::string,  /// prof
+			std::string,  /// instructor
 			Triplet
 		>
 	> _mod_prof;
 
 	std::map<
-		std::string,      /// prof
+		std::string,      /// instructor
 		std::map<
 			std::string,  /// module
 			Triplet
 		>
 	> _prof_mod;
 
-
+/// Add one event to the data
 	void addOne( std::string name, size_t num_sem, EN_WeekDay wd, const std::pair<EN_Type,std::string>& type_mod, float duration )
 	{
 		assert( !name.empty() );
-		auto& prof = _joursProfs[name];
-		auto& sem  = prof[num_sem];
-		sem.insert( wd );
+		auto& inst = _instructorWorkdays[name];
+		auto& week = inst[num_sem];
+		week.insert( wd );
 
 		auto type   = type_mod.first;
 		auto module = type_mod.second;
@@ -208,14 +226,14 @@ struct Results
 
 	void compute()
 	{
-		for( const auto& prof: _joursProfs )
+		for( const auto& prof: _instructorWorkdays )
 		{
 //			std::cout << "-processing prof " << prof.first << '\n';
 			for( const auto& sem: prof.second )
 			{
 //				std::cout << "  -processing sem " << sem.first << '\n';
-				for( const auto& wd: sem.second )
-					_instructorData[prof.first].incrementDays();
+//				for( const auto& wd: sem.second )
+					_instructorData[prof.first].incrementDays( sem.second.size() );
 			}
 		}
 		for( const auto& pr: _prof_mod )
@@ -233,10 +251,12 @@ struct Results
 			_instructorData[pr.first]._nbModules = nbMod;
 		}
 	}
-	void print() const
+
+	void writeReport_ME( std::string fn )
 	{
-#if 0
-		std::cout << "----------- module / prof ------------:\n";
+		std::cout << " - génération du fichier " << fn << '\n';
+		auto file = openFile( fn, "Bilan module/enseignant" );
+
 		char current_semestre = ' ';
 		for( const auto& mod: _mod_prof )
 		{
@@ -244,40 +264,52 @@ struct Results
 			auto semestre = module.substr( 4, 1 ).at(0);
 			if( current_semestre != semestre )
 			{
-				std::cout << "\n *** SEMESTRE *** " << semestre << '\n';
+				file << "\n *** SEMESTRE *** " << semestre << '\n';
 				current_semestre = semestre;
 			}
-			std::cout << "- module:" << module << '\n';
+			file << "- module:" << module << '\n';
 			Triplet tot;
 			for( const auto& prof: mod.second )
 			{
-				std::cout << "  - prof:" << prof.first << ": " << prof.second << '\n';
+				file << "  - prof:" << prof.first << ": " << prof.second << '\n';
 				tot += prof.second;
 			}
-			std::cout << "- TOTAL=" << tot << '\n';
+			file << "- TOTAL=" << tot << '\n';
 		}
+	}
 
-		std::cout << "----------- prof / module ------------:\n";
+	void writeReport_EM( std::string fn )
+	{
+		std::cout << " - génération du fichier " << fn << '\n';
+		auto file = openFile( fn, "Bilan enseignant/module" );
+
 		for( const auto& pr: _prof_mod )
 		{
 			auto prof = pr.first;
-			std::cout << "  - prof:" << prof << '\n';
+			file << "\nEnseignant:" << prof << '\n';
 			Triplet tot;
 			for( const auto& mod: pr.second )
 			{
-				std::cout << "   - module: " << mod.first << ": " <<  mod.second << '\n';
+				file << "  - module: " << mod.first << ": " <<  mod.second << '\n';
 				tot += mod.second;
 			}
-			std::cout << "- TOTAL=" << tot << '\n';
+			file << "- TOTAL=" << tot << '\n';
 		}
-#endif
+	}
 
-		std::cout << "#Resultats:\n";
-		std::cout << "#NOM;Nb-jours;vol-CM;vol-TD;vol-TP;vol-total;nb-modules;ratio\n";
+	void writeCsv( std::string fn )
+	{
+		std::cout << " - génération du fichier " << fn << '\n';
+		std::ofstream file( fn );
+		if( !file.is_open() )
+			throw std::runtime_error( "Error, unable to open file " + fn );
+
+		file << "#Resultats:\n";
+		file << "#Nom;Nb-jours;vol-CM;vol-TD;vol-TP;vol total;nb-modules;ratio vol. total/nb jours\n";
 		for( const auto& instr: _instructorData )
 		{
 			auto instrData = instr.second;
-			std::cout << instr.first << g_ocs << instrData << g_ocs
+			file << instr.first << g_ocs << instrData << g_ocs
 				<< 1.0*instrData._volume.sum() / instrData._nbDays
 				<< '\n';
 		}
@@ -287,11 +319,11 @@ struct Results
 int main( int argc, char* argv[] )
 {
 	assert( argc == 2 );
-	std::string fn = argv[1];
+	std::string fn_in = argv[1];
 
-	std::ifstream file( fn );
+	std::ifstream file( fn_in );
 	if( !file.is_open() )
-		throw std::runtime_error( "Error, unable to open file " + fn );
+		throw std::runtime_error( "Error, unable to open file " + fn_in );
 
 	Results results;
 
@@ -334,7 +366,13 @@ int main( int argc, char* argv[] )
 		}
 	}
 	results.compute();
-	results.print();
+	auto fn2 = split_string( fn_in, '.' );
+	assert( fn2.size() > 0 );
+
+	results.writeCsv(    "adepopro_" + fn2[0] + ".csv" );
+	results.writeReport_ME( "adepopro_ME_" + fn2[0] + ".txt" );
+	results.writeReport_EM( "adepopro_EM_" + fn2[0] + ".txt" );
+
 }
 //-------------------------------------------------------------------
 
