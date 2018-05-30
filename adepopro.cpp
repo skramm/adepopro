@@ -9,9 +9,11 @@ Command-line option: -s : module report will be separated by semester (encoded a
 */
 
 #include <vector>
+#include <array>
 #include <map>
 #include <set>
 #include <cassert>
+#include <algorithm>
 //#include <iomanip>
 #include <string>
 #include <fstream>
@@ -180,7 +182,7 @@ openFile( std::string fn, std::string text )
 		throw std::runtime_error( "Error, unable to open file " + fn );
 
 	std::cout << " - génération du fichier " << fn << '\n';
-	file << text << '\n';
+	file << text;
 
 	return file;
 }
@@ -334,9 +336,9 @@ struct Results
 		}
 	}
 /// write CSV data of Instructors
-	void writeCsv_I( std::string fn )
+	void writeCsv_I( std::string fn, std::string headline )
 	{
-		auto file = openFile( fn, "#Nom;Nb-jours;Nb sem;vol. CM;vol. TD;vol. TP;vol. total;nb modules;ratio vol. total/nb jours" );
+		auto file = openFile( fn, headline );
 		for( const auto& instr: _instructorData )
 		{
 			auto instrData = instr.second;
@@ -347,9 +349,9 @@ struct Results
 	}
 
 /// write CSV data of Modules
-	void writeCsv_M( std::string fn )
+	void writeCsv_M( std::string fn, std::string headline )
 	{
-		auto file = openFile( fn, "#Module;Nb-jours;Nb sem;vol. CM;vol. TD;vol. TP;vol. total;nb enseignants;ratio vol. total/nb jours" );
+		auto file = openFile( fn, headline );
 		for( const auto& module: _moduleData )
 		{
 			auto modData = module.second;
@@ -359,6 +361,41 @@ struct Results
 		}
 	}
 
+};
+//-------------------------------------------------------------------
+/// Describes the fields we want to read in the input file
+enum ColIndex : char { CI_Week, CI_Day, CI_Duration, CI_Instructor, CI_Module, CI_NB_ELEMS };
+
+#if 0
+/// Unused at present, wil be used to read these in .ini file, see InputFormat
+std::map<ColIndex,std::string> g_colIndexStr = {
+	{ CI_Week,       "colSemaine" },
+	{ CI_Day,        "colJour"    },
+	{ CI_Duration,   "colDuree"   },
+	{ CI_Instructor, "colEns"     },
+	{ CI_Module,     "colModule"  }
+};
+#endif
+//-------------------------------------------------------------------
+/// Holds the fields indexes of input file
+/// \todo add reading of these in a .ini file
+struct InputFormat
+{
+	char delimiter = ';';
+	std::array<int,CI_NB_ELEMS> colIndex;
+
+	InputFormat()
+	{
+		colIndex[CI_Week]       = 0;
+		colIndex[CI_Day]        = 1;
+		colIndex[CI_Duration]   = 2;
+		colIndex[CI_Instructor] = 6;
+		colIndex[CI_Module]     = 8;
+	}
+	size_t getHighestIndex() const
+	{
+		return *std::max_element( std::begin(colIndex), std::end(colIndex) );
+	}
 };
 //-------------------------------------------------------------------
 /// see adepopro.cpp
@@ -382,7 +419,7 @@ int main( int argc, char* argv[] )
 
 	Results results;
 
-	char delimiter{';'};
+	InputFormat inputFormat;
 	std::string buff;
 	int line = 0;
 	while ( getline (file, buff ) )
@@ -390,11 +427,10 @@ int main( int argc, char* argv[] )
 		line++;
 //		std::cout << "line " << line << ": " << buff << '\n';
 
-		auto v_str = split_string( buff, delimiter );
-//		std::cout << "nb champs=" << v_str.size() << '\n';
-		if( v_str.size() < 9 && !v_str.empty() )
+		auto v_str = split_string( buff, inputFormat.delimiter );
+		if( v_str.size() < inputFormat.getHighestIndex() && !v_str.empty() )
 		{
-			std::cout << "erreur, champ manquants: " << v_str.size() << " au lieu de 9 :\n" << buff << '\n';
+			std::cout << "erreur, champ manquants: " << v_str.size() << " au lieu de " << inputFormat.getHighestIndex() << " au minimum:\n" << buff << '\n';
 			for( auto s: v_str )
 				std::cout << "-" << s << '\n';
 			throw std::runtime_error("error");
@@ -402,11 +438,12 @@ int main( int argc, char* argv[] )
 		if( !v_str.empty() )
 		if( !v_str[0].empty() )
 		{
-			auto week_num = getWeekNum( v_str[0] );
-			auto weekday  = getWeekDay( v_str[1] );
-			auto name = v_str[6];
-			auto code = v_str[8];
-			auto duration = getDuration( v_str[2] );
+			auto week_num = getWeekNum(  v_str.at(inputFormat.colIndex[CI_Week])      );
+			auto weekday  = getWeekDay(  v_str.at(inputFormat.colIndex[CI_Day])       );
+			auto duration = getDuration( v_str.at(inputFormat.colIndex[CI_Duration])  );
+			auto name     =              v_str.at(inputFormat.colIndex[CI_Instructor] );
+			auto code     =              v_str.at(inputFormat.colIndex[CI_Module]     );
+
 			if( !code.empty() )
 			{
 //				std::cout << "buff=" << buff << '\n';
@@ -424,8 +461,11 @@ int main( int argc, char* argv[] )
 	auto fn2 = split_string( fn_in, '.' );
 	assert( fn2.size() > 0 );
 
-	results.writeCsv_I(     "adepopro_E_"  + fn2[0] + ".csv" );
-	results.writeCsv_M(     "adepopro_M_"  + fn2[0] + ".csv" );
+	std::string head1 = "#Nom;Nb jours;Nb sem;vol. CM;vol. TD;vol. TP;vol. total;";
+	std::string head2 = ";ratio vol. total/nb jours\n";
+
+	results.writeCsv_I(     "adepopro_E_"  + fn2[0] + ".csv", head1 + "nb modules"     + head2 );
+	results.writeCsv_M(     "adepopro_M_"  + fn2[0] + ".csv", head1 + "nb enseignants" + head2 );
 	results.writeReport_MI( "adepopro_ME_" + fn2[0] + ".txt", sortBySemester );
 	results.writeReport_IM( "adepopro_EM_" + fn2[0] + ".txt" );
 
