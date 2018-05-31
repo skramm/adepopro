@@ -127,7 +127,6 @@ public:
 		f << tri._vol[0] << g_ocs << tri._vol[1] << g_ocs << tri._vol[2] << g_ocs << tri.sum();
 		return f;
 	}
-private:
 	void clear()
 	{
 		_vol[0] = _vol[1] = _vol[2] = 0.0f;
@@ -234,8 +233,8 @@ process(
 		}
 }
 //-------------------------------------------------------------------
-void
-printCurrentElement( std::ofstream& file, const TripletMap& elem1, Triplet& bigsum, std::string elemStr )
+Triplet
+printCurrentElement( std::ofstream& file, const TripletMap& elem1, std::string elemStr )
 {
 	Triplet sum;
 	for( const auto& elem2: elem1 )
@@ -244,7 +243,7 @@ printCurrentElement( std::ofstream& file, const TripletMap& elem1, Triplet& bigs
 		sum += elem2.second;
 	}
 	file << "- TOTAL=" << sum << '\n';
-	bigsum += sum;
+	return sum;
 }
 //-------------------------------------------------------------------
 /// Holds all the data read from the file, along with the processing functions
@@ -317,18 +316,32 @@ struct Data
 
 		char current_semestre = ' ';
 		Triplet bigsum;
+		Triplet sum_sem;
+		char semestre = 0;
 		for( const auto& elem1: _mod_prof )
 		{
-			auto semestre = elem1.first.substr( 4, 1 ).at(0);
+			semestre = elem1.first.substr( 4, 1 ).at(0);
 			if( current_semestre != semestre && sortBySemester )
 			{
+				if(  current_semestre != ' ' )  // if not the first semester, print sum
+				{
+					file << "\n Total semestre " << current_semestre << " = " << sum_sem << '\n';
+					sum_sem.clear();
+				}
+
 				file << "\n *** SEMESTRE " << semestre << " *** \n\n";
 				current_semestre = semestre;
 			}
 
 			file << "- module:" << elem1.first << '\n';
-			printCurrentElement( file, elem1.second, bigsum, "enseignant" );
+			auto s = printCurrentElement( file, elem1.second, "enseignant" );
+			sum_sem += s;
+			bigsum  += s;
 		}
+
+		if( sortBySemester )
+			file << "\n Total semestre " << semestre << " = " << sum_sem << '\n';
+
 		file << "\n*** TOTAL GENERAL ***\n" << bigsum << '\n';
 	}
 
@@ -341,7 +354,7 @@ struct Data
 		for( const auto& elem1: _prof_mod )
 		{
 			file << "\nEnseignant:" << elem1.first << '\n';
-			printCurrentElement( file, elem1.second, bigsum, "module" );
+			bigsum += printCurrentElement( file, elem1.second, "module" );
 		}
 		file << "\n*** TOTAL GENERAL ***\n" << bigsum << '\n';
 	}
@@ -379,6 +392,7 @@ std::map<ColIndex,std::string> g_colIndexStr = {
 struct InputFormat
 {
 	char delimiter = ';';
+	char commentChar = '#';
 	std::map<ColIndex,int> colIndex;
 
 	InputFormat()
@@ -404,7 +418,10 @@ struct InputFormat
 
 	friend std::ostream& operator << ( std::ostream& f, const InputFormat& ifor )
 	{
-		f << "Input File parameters:\n -delimiter='" << ifor.delimiter << "'\n -input file indexes:\n";
+		f << "Input File parameters:"
+			<< "\n -delimiter='"   << ifor.delimiter   << '\''
+			<< "\n -commentChar='" << ifor.commentChar << '\''
+			<< "\n -input file indexes:\n";
 
 		for( size_t i=0; i<g_colIndexStr.size(); i++ )
 			f << "  -" << g_colIndexStr[(ColIndex)i] << ": " << ifor.colIndex.at((ColIndex)i) << '\n';
@@ -427,7 +444,7 @@ int main( int argc, char* argv[] )
 	bool printOptions = false;
 	if( argc > 2 )
 	{
-		for( size_t i=1; i<argc-1; i++ )
+		for( int i=1; i<argc-1; i++ )
 		{
 			if( std::string(argv[i]) == "-s" )
 				sortBySemester = true;
@@ -467,7 +484,7 @@ int main( int argc, char* argv[] )
 			throw std::runtime_error("error");
 		}
 		if( !v_str.empty() )
-		if( !v_str[0].empty() )
+		if( !v_str[0].empty() && v_str[0].front() != inputFormat.commentChar )
 		{
 			auto week_num = getWeekNum(  v_str.at(inputFormat.colIndex[CI_Week])      );
 			auto weekday  = getWeekDay(  v_str.at(inputFormat.colIndex[CI_Day])       );
@@ -480,8 +497,8 @@ int main( int argc, char* argv[] )
 //				std::cout << "buff=" << buff << '\n';
 //				std::cout << "line=" << line << " nb champs=" << v_str.size() << " name=" << name << " day=" << (int)weekday << " weeknum=" << week_num << " code=" << code << '\n';
 				auto type_mod = getTypeModule( code );
-				if( v_str.size() > 9 )
-					std::cout << "line " << line << ": " << buff << '\n';
+//				if( v_str.size() > 9 )
+//					std::cout << "line " << line << ": " << buff << '\n';
 				if( name.empty() )
 					name = "(néant)";
 				results.addOne( name, week_num, weekday, type_mod, duration );
