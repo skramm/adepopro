@@ -5,7 +5,9 @@
 - Licence: GPL v3.0
 - See https://github.com/skramm/adepopro
 
-Command-line option: -s : module report will be separated by semester (encoded as 5th character of module name)
+Command-line options:
+ - "-s" : module report will be separated by semester (encoded as 5th character of module name)
+ - "-p" : shows input file parameters and quits.
 */
 
 #include <vector>
@@ -359,9 +361,9 @@ struct Data
 };
 //-------------------------------------------------------------------
 /// Describes the fields we want to read in the input file
-enum ColIndex : char { CI_Week, CI_Day, CI_Duration, CI_Instructor, CI_Module, CI_NB_ELEMS };
+enum ColIndex : char { CI_Week, CI_Day, CI_Duration, CI_Instructor, CI_Module };
 
-#if 0
+
 /// Unused at present, wil be used to read these in .ini file, see InputFormat
 std::map<ColIndex,std::string> g_colIndexStr = {
 	{ CI_Week,       "colSemaine" },
@@ -370,14 +372,14 @@ std::map<ColIndex,std::string> g_colIndexStr = {
 	{ CI_Instructor, "colEns"     },
 	{ CI_Module,     "colModule"  }
 };
-#endif
+
 //-------------------------------------------------------------------
 /// Holds the fields indexes of input file
 /// \todo add reading of these in a .ini file
 struct InputFormat
 {
 	char delimiter = ';';
-	std::array<int,CI_NB_ELEMS> colIndex;
+	std::map<ColIndex,int> colIndex;
 
 	InputFormat()
 	{
@@ -389,7 +391,25 @@ struct InputFormat
 	}
 	size_t getHighestIndex() const
 	{
-		return *std::max_element( std::begin(colIndex), std::end(colIndex) );
+		return std::max_element(
+			std::begin(colIndex),
+			std::end(colIndex),
+			[]
+			(const std::pair<ColIndex,int> & p1, const std::pair<ColIndex,int> & p2)
+			{
+				return p1.second < p2.second;
+			}
+		)->second;
+	}
+
+	friend std::ostream& operator << ( std::ostream& f, const InputFormat& ifor )
+	{
+		f << "Input File parameters:\n -delimiter='" << ifor.delimiter << "'\n -input file indexes:\n";
+
+		for( size_t i=0; i<g_colIndexStr.size(); i++ )
+			f << "  -" << g_colIndexStr[(ColIndex)i] << ": " << ifor.colIndex.at((ColIndex)i) << '\n';
+		f << " -highest index = " << ifor.getHighestIndex() << '\n';
+		return f;
 	}
 };
 //-------------------------------------------------------------------
@@ -404,9 +424,17 @@ int main( int argc, char* argv[] )
 	std::string fn_in = argv[argc-1];
 
 	bool sortBySemester = false;
+	bool printOptions = false;
 	if( argc > 2 )
-		if( std::string(argv[1]) == "-s" )
-			sortBySemester = true;
+	{
+		for( size_t i=1; i<argc-1; i++ )
+		{
+			if( std::string(argv[i]) == "-s" )
+				sortBySemester = true;
+			if( std::string(argv[i]) == "-p" )
+				printOptions = true;
+		}
+	}
 
 	std::ifstream file( fn_in );
 	if( !file.is_open() )
@@ -415,6 +443,14 @@ int main( int argc, char* argv[] )
 	Data results;
 
 	InputFormat inputFormat;
+/// \todo here, insert reading options in ini file
+
+
+	if( printOptions )
+	{
+		std::cout << inputFormat << '\n';
+		return 1;
+	}
 	std::string buff;
 	int line = 0;
 	while ( getline (file, buff ) )
