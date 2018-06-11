@@ -1,4 +1,4 @@
-adepopro: ADE(Campus)POstPROcess
+### adepopro: ADE(Campus)POstPROcess
 
 (see https://www.adesoft.com/ade-campus/)
 
@@ -9,7 +9,11 @@ adepopro: ADE(Campus)POstPROcess
 * Hosting: https://github.com/skramm/adepopro
 * Manual (fr-only): [online here](https://github.com/skramm/adepopro/blob/master/docs/man_fr.md)
 
-Motivation: when your institution uses ADE Campus for planning, it is not very easy
+This is a tool related to the sofware ADE Campus, if you are not a user of this, you probably will not be concerned.<br>
+See https://www.adesoft.com/ade-campus/ for details.
+
+#### Motivation:
+When your institution uses ADE Campus for planning, it is not very easy
 (even for the person in charge for the planning)
 to access to some basic information.
 Thus this tool is designed to do some post process, to extract some information such as:
@@ -31,6 +35,19 @@ Once this is done, the program is launched with:
 adepopro <csv_input_file>
 ```
 
+#### Building:
+
+You will need a C++11 compliant compiler installed on your machine.
+
+* If you have the CodeBlocks IDE installed on your machine, you should be able to build by opening the project file ```adepopro.cbp``` and hitting F9
+* If you have GnuMake, you can build the app by entering
+```
+make
+```
+* As the program is contained in a single cpp file, you can also enter the following in a shell:
+```
+g++ -std=c++11 -o adepopro adepopro.cpp
+```
 
 Error handling: at present, in case of malformed input file, an assert is raised and execution stops.
 This could be improved.
