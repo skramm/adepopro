@@ -133,11 +133,12 @@ public:
 	}
 };
 
+//-------------------------------------------------------------------
 /// Returns type of course and course code from string
 /**
 The course code embeds the type: CM/TD/TP, coded as last character.
 For example:
- - \c ABC1234D => D means TD
+ - \c ABC1234D => D means TD, will return (TY_TD,ABC1234)
  - \c ABC1234C => C means CM
  - \c ABC1234P => P means TP
 */
@@ -192,7 +193,7 @@ openFile( std::string fn, std::string text )
 	return file;
 }
 
-/// Used for counting on which days a resource is used
+/// Used for counting on which days and week a resource is used
 typedef
 	std::map<
 		std::string,  // name
@@ -310,27 +311,30 @@ struct Data
 	}
 
 /// write report of Modules / Instructor
+/**
+If option \c sortBySemester is true, modules will be grouped by semester
+*/
 	void writeReport_MI( std::string fn, bool sortBySemester )
 	{
 		auto file = openFile( fn, "Bilan module/enseignant" );
 
-		char current_semestre = ' ';
+		char current_semester = ' ';
 		Triplet bigsum;
 		Triplet sum_sem;
 		char semestre = 0;
 		for( const auto& elem1: _mod_prof )
 		{
 			semestre = elem1.first.substr( 4, 1 ).at(0);
-			if( current_semestre != semestre && sortBySemester )
+			if( current_semester != semestre && sortBySemester )
 			{
-				if(  current_semestre != ' ' )  // if not the first semester, print sum
+				if(  current_semester != ' ' )  // if not the first semester, print sum
 				{
-					file << "\n Total semestre " << current_semestre << " = " << sum_sem << '\n';
+					file << "\n Total semestre " << current_semester << " = " << sum_sem << '\n';
 					sum_sem.clear();
 				}
 
 				file << "\n *** SEMESTRE " << semestre << " *** \n\n";
-				current_semestre = semestre;
+				current_semester = semestre;
 			}
 
 			file << "- module:" << elem1.first << '\n';

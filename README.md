@@ -15,22 +15,22 @@ to access to some basic information.
 Thus this tool is designed to do some post process, to extract some information such as:
  * what are the modules in which a given instructor has some teaching ?
  * what are the instructors that give teaching in a given course module ?
- * over how many weeks and days does a given module spread
- * how many days is an instructor present
+ * over how many weeks and days does a given module spread ?
+ * how many days is an instructor present ?
 
-* Input: it will take as input a raw data export, that needs to be done manually from ADE Campus client.
-* Output: it will generate from the input file several .csv files holding the data described above.
+* Input: it will take as input a raw data CSV file. This file needs to be generated manually from the ADE Campus client.
+* Output: it will generate from the input file several .csv and text files holding the data described above.
 You can afterward load these in your favorite spreadsheet application and format them as required.
-
 
 
 No guarantee is given on its usefulness, as it is targeted on our specific organization.
 
 Usage: this is only a C++ source file, thus you need to compile it before using it.
-Once this is done, it is:
+Once this is done, the program is launched with:
 ```
 adepopro <csv_input_file>
 ```
+
 
 Error handling: at present, in case of malformed input file, an assert is raised and execution stops.
 This could be improved.
