@@ -3,7 +3,7 @@
 
 - Author: S. Kramm - 2018
 - Licence: GPL v3.0
-- See https://github.com/skramm/adepopro
+- hosting: https://github.com/skramm/adepopro
 
 Command-line options:
  - "-s" : module report will be separated by semester (encoded as 5th character of module name)
@@ -324,6 +324,7 @@ If option \c sortBySemester is true, modules will be grouped by semester
 		char semestre = 0;
 		for( const auto& elem1: _mod_prof )
 		{
+//			semestre = elem1.first.substr( params.semesterFieldIndex, 1 ).at(0);
 			semestre = elem1.first.substr( 4, 1 ).at(0);
 			if( current_semester != semestre && sortBySemester )
 			{
@@ -398,7 +399,9 @@ struct InputFormat
 	char delimiter = ';';
 	char commentChar = '#';
 	std::map<ColIndex,int> colIndex;
+	int semesterFieldIndex = 4; /// \todo add this
 
+	/// constructor, assigns default values
 	InputFormat()
 	{
 		colIndex[CI_Week]       = 0;
@@ -412,7 +415,7 @@ struct InputFormat
 		return std::max_element(
 			std::begin(colIndex),
 			std::end(colIndex),
-			[]
+			[]     // lambda
 			(const std::pair<ColIndex,int> & p1, const std::pair<ColIndex,int> & p2)
 			{
 				return p1.second < p2.second;

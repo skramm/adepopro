@@ -23,10 +23,12 @@
 			<Add option="-Wall" />
 			<Add option="-std=c++11" />
 		</Compiler>
+		<Unit filename="Doxyfile" />
 		<Unit filename="LICENSE" />
 		<Unit filename="Makefile" />
 		<Unit filename="README.md" />
 		<Unit filename="adepopro.cpp" />
+		<Unit filename="docs/man_fr.md" />
 		<Extensions>
 			<envvars />
 			<code_completion />

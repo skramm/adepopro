@@ -5,6 +5,20 @@ Voir https://github.com/skramm/adepopro
 
 (version du 2018-06-11)
 
+### Introduction
+
+Ce programme est dédié à la génération de rapports de synthèse à partir d'un export de données depuis le client lourd Windows de ADE Campus.
+En effet, il semble que ni le client lourd, ni le client Web ne permettent d'obtenir des informations synthétiques telles que:
+
+* quels sont les modules d'enseignement sur lesquels un enseignant donné intervient ?
+* quels sont les enseignants qui interviennent sur un module donné ?
+* sur combien de jours, de semaines s'étale un module ?
+* combien de jours, de semaines d'intervention pour un enseignant ?
+
+Ce programme génère donc à partir d'un unique fichier d'entrée quatre fichiers de sortie regroupant toutes ces informations (voir ci-dessous).
+
+### Procédure
+
 Le fichier d'entrée au format csv est à générer depuis le client lourd Windows de ADE Campus.
 La manip ci-dessous a été testée avec la version 6.5.3
 
@@ -16,7 +30,7 @@ Au besoin, ajouter les champs nécessaires en cliquant sur le bouton entouré en
 ![im2](ade_2b.png)
 1. Sélectionner l'ensemble des évènements avec CTRL-A:
 ![im3](ade_3b.png)
-1. Copier (CTRL-C), puis ouvrir un tableur (Excel ou LibreOffice-Calc), sélectionner la cellule en heut à gauche, et coller (CTRL-V).
+1. Copier (CTRL-C), puis ouvrir un tableur (Excel ou LibreOffice-Calc), sélectionner la cellule en haut à gauche, et coller (CTRL-V).
 1. Sauvegarder au format CSV, en vérifiant les options: séparateur de champ: ";", et pas de guillements autour des chaînes de caractères.
 
 Vous avez maintenant un fichier CSV, qui pourra être utilisée comme entrée de AdePoPro, comme ceci:
@@ -24,12 +38,14 @@ Vous avez maintenant un fichier CSV, qui pourra être utilisée comme entrée de
 adepopro monfichier.csv
 ```
 
+### Fichiers de sortie
+
 En cas de succès, ceci va générer 4 fichiers dans le dossier courant:
 * 2 fichier csv de 9 champs, qui peuvent être ouverts dans n'importe quel tableur, permettant un reporting ou d'autres traitements:
   * ```adepopro_E_monfichier.csv``` :<br>
- Contient la liste des enseignants avec pour chacun d'eux, le nombre de jours et de semaines d'activité, le volume total d'enseignement en CM,TD, TP, ainsi que le total présentiel (4 valeurs), et le nombre de module où l'enseignant intervient.
+ Contient la liste des enseignants avec pour chacun d'eux, le nombre de jours et de semaines d'activité, le volume total d'enseignement en CM,TD, TP, ainsi que le total présentiel (4 valeurs: CM, TD, TP, plus le total), et le nombre de modules où l'enseignant intervient.
   * ```adepopro_M_monfichier.csv```<br>
- Contient la liste des modules avec pour chacun d'eux, le nombre de jours et de semaines d'activité, le volume CM,TD, TP, ainsi que le total, et le nombre d'enseignants intervenant sur ce module.
+ Contient la liste des modules avec pour chacun d'eux, le nombre de jours et de semaines d'activité, le volume CM,TD, TP, ainsi que le total et le nombre d'enseignants intervenant sur ce module.
 
 
 * 2 fichiers "texte"
@@ -42,5 +58,13 @@ Ces fichiers donnent le détail des infos.
 
 Les volumes sont exprimés en heures, et sous la forme:<br>
 ```vol_CM;vol_TD;vol_TP;total```
+
+
+### Options
+
+Le programme supporte les deux options suivantes:
+* "-s" : le rapport texte par module d'enseignement sera regroupé par semestre. Ce dernier est encodé par le 5ème caractère du code-module.
+* "-p" : affiche les paramètres de fonctionnement.
+
 
 S. Kramm - 2018
