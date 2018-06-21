@@ -243,9 +243,82 @@ printCurrentElement( std::ofstream& file, const TripletMap& elem1, std::string e
 		file << "  - " << elemStr << ": " << elem2.first << ": " << elem2.second << '\n';
 		sum += elem2.second;
 	}
-	file << "- TOTAL=" << sum << '\n';
+	file << "- TOTAL=" << sum << "\n\n";
 	return sum;
 }
+//-------------------------------------------------------------------
+/// Describes the fields we want to read in the input file
+enum ColIndex : char { CI_Week, CI_Day, CI_Duration, CI_Instructor, CI_Module };
+
+//-------------------------------------------------------------------
+/// Unused at present, wil be used to read these in .ini file, see InputFormat
+std::map<ColIndex,std::string> g_colIndexStr = {
+	{ CI_Week,       "colSemaine" },
+	{ CI_Day,        "colJour"    },
+	{ CI_Duration,   "colDuree"   },
+	{ CI_Instructor, "colEns"     },
+	{ CI_Module,     "colModule"  }
+};
+
+//-------------------------------------------------------------------
+std::map<char,ResourceVolumeMap>
+distributeSemesters( const ResourceVolumeMap& rvm, int semesterFieldIndex )
+{
+	std::map<char,ResourceVolumeMap> out;
+	for( const auto& elem: rvm )
+	{
+		auto semester = elem.first.substr( semesterFieldIndex, 1 ).at(0);
+		auto& current = out[semester];
+		current[elem.first] = elem.second;
+	}
+	return out;
+}
+
+//-------------------------------------------------------------------
+/// Holds the fields indexes of input file
+/// \todo add reading of these in a .ini file
+struct InputFormat
+{
+	char delimiter = ';';
+	char commentChar = '#';
+	std::map<ColIndex,int> colIndex;
+	int semesterFieldIndex = 4; /// \todo add this
+
+	/// constructor, assigns default values
+	InputFormat()
+	{
+		colIndex[CI_Week]       = 0;
+		colIndex[CI_Day]        = 1;
+		colIndex[CI_Duration]   = 2;
+		colIndex[CI_Instructor] = 6;
+		colIndex[CI_Module]     = 8;
+	}
+	size_t getHighestIndex() const
+	{
+		return std::max_element(
+			std::begin(colIndex),
+			std::end(colIndex),
+			[]     // lambda
+			(const std::pair<ColIndex,int> & p1, const std::pair<ColIndex,int> & p2)
+			{
+				return p1.second < p2.second;
+			}
+		)->second;
+	}
+
+	friend std::ostream& operator << ( std::ostream& f, const InputFormat& ifor )
+	{
+		f << "Input File parameters:"
+			<< "\n -delimiter='"   << ifor.delimiter   << '\''
+			<< "\n -commentChar='" << ifor.commentChar << '\''
+			<< "\n -input file indexes:\n";
+
+		for( size_t i=0; i<g_colIndexStr.size(); i++ )
+			f << "  -" << g_colIndexStr[(ColIndex)i] << ": " << ifor.colIndex.at((ColIndex)i) << '\n';
+		f << " -highest index = " << ifor.getHighestIndex() << '\n';
+		return f;
+	}
+};
 //-------------------------------------------------------------------
 /// Holds all the data read from the file, along with the processing functions
 struct Data
@@ -314,39 +387,38 @@ struct Data
 /**
 If option \c sortBySemester is true, modules will be grouped by semester
 */
-	void writeReport_MI( std::string fn, bool sortBySemester )
+	void writeReport_MI( std::string fn, bool sortBySemester, const InputFormat& params )
 	{
 		auto file = openFile( fn, "Bilan module/enseignant" );
 
-		char current_semester = ' ';
 		Triplet bigsum;
-		Triplet sum_sem;
-		char semestre = 0;
-		for( const auto& elem1: _mod_prof )
-		{
-//			semestre = elem1.first.substr( params.semesterFieldIndex, 1 ).at(0);
-			semestre = elem1.first.substr( 4, 1 ).at(0);
-			if( current_semester != semestre && sortBySemester )
-			{
-				if(  current_semester != ' ' )  // if not the first semester, print sum
-				{
-					file << "\n Total semestre " << current_semester << " = " << sum_sem << '\n';
-					sum_sem.clear();
-				}
-
-				file << "\n *** SEMESTRE " << semestre << " *** \n\n";
-				current_semester = semestre;
-			}
-
-			file << "- module:" << elem1.first << '\n';
-			auto s = printCurrentElement( file, elem1.second, "enseignant" );
-			sum_sem += s;
-			bigsum  += s;
-		}
-
 		if( sortBySemester )
-			file << "\n Total semestre " << semestre << " = " << sum_sem << '\n';
-
+		{
+			Triplet sum_sem;
+			auto sem_map = distributeSemesters( _mod_prof, params.semesterFieldIndex );
+			for( const auto& elem1: sem_map )
+			{
+				file << "\n *** SEMESTRE " << elem1.first << " *** \n\n";
+				const auto current = elem1.second;
+				for( const auto& elem2: current )
+				{
+					file << "- module:" << elem2.first << '\n';
+					auto s = printCurrentElement( file, elem2.second, "enseignant" );
+					bigsum  += s;
+					sum_sem += s;
+				}
+				file << "* Total semestre " << elem1.first << " = " << sum_sem << '\n';
+			}
+		}
+		else
+		{
+			for( const auto& elem1: _mod_prof )
+			{
+				file << "- module:" << elem1.first << '\n';
+				auto s = printCurrentElement( file, elem1.second, "enseignant" );
+				bigsum  += s;
+			}
+		}
 		file << "\n*** TOTAL GENERAL ***\n" << bigsum << '\n';
 	}
 
@@ -358,7 +430,7 @@ If option \c sortBySemester is true, modules will be grouped by semester
 		Triplet bigsum;
 		for( const auto& elem1: _prof_mod )
 		{
-			file << "\nEnseignant:" << elem1.first << '\n';
+			file << "Enseignant:" << elem1.first << '\n';
 			bigsum += printCurrentElement( file, elem1.second, "module" );
 		}
 		file << "\n*** TOTAL GENERAL ***\n" << bigsum << '\n';
@@ -377,65 +449,7 @@ If option \c sortBySemester is true, modules will be grouped by semester
 		}
 	}
 };
-//-------------------------------------------------------------------
-/// Describes the fields we want to read in the input file
-enum ColIndex : char { CI_Week, CI_Day, CI_Duration, CI_Instructor, CI_Module };
 
-
-/// Unused at present, wil be used to read these in .ini file, see InputFormat
-std::map<ColIndex,std::string> g_colIndexStr = {
-	{ CI_Week,       "colSemaine" },
-	{ CI_Day,        "colJour"    },
-	{ CI_Duration,   "colDuree"   },
-	{ CI_Instructor, "colEns"     },
-	{ CI_Module,     "colModule"  }
-};
-
-//-------------------------------------------------------------------
-/// Holds the fields indexes of input file
-/// \todo add reading of these in a .ini file
-struct InputFormat
-{
-	char delimiter = ';';
-	char commentChar = '#';
-	std::map<ColIndex,int> colIndex;
-	int semesterFieldIndex = 4; /// \todo add this
-
-	/// constructor, assigns default values
-	InputFormat()
-	{
-		colIndex[CI_Week]       = 0;
-		colIndex[CI_Day]        = 1;
-		colIndex[CI_Duration]   = 2;
-		colIndex[CI_Instructor] = 6;
-		colIndex[CI_Module]     = 8;
-	}
-	size_t getHighestIndex() const
-	{
-		return std::max_element(
-			std::begin(colIndex),
-			std::end(colIndex),
-			[]     // lambda
-			(const std::pair<ColIndex,int> & p1, const std::pair<ColIndex,int> & p2)
-			{
-				return p1.second < p2.second;
-			}
-		)->second;
-	}
-
-	friend std::ostream& operator << ( std::ostream& f, const InputFormat& ifor )
-	{
-		f << "Input File parameters:"
-			<< "\n -delimiter='"   << ifor.delimiter   << '\''
-			<< "\n -commentChar='" << ifor.commentChar << '\''
-			<< "\n -input file indexes:\n";
-
-		for( size_t i=0; i<g_colIndexStr.size(); i++ )
-			f << "  -" << g_colIndexStr[(ColIndex)i] << ": " << ifor.colIndex.at((ColIndex)i) << '\n';
-		f << " -highest index = " << ifor.getHighestIndex() << '\n';
-		return f;
-	}
-};
 //-------------------------------------------------------------------
 /// see adepopro.cpp
 int main( int argc, char* argv[] )
@@ -522,7 +536,7 @@ int main( int argc, char* argv[] )
 
 	results.writeCsv( "adepopro_E_" + fn2[0] + ".csv", results._instructorData, head1 + "nb modules"     + head2 );
 	results.writeCsv( "adepopro_M_" + fn2[0] + ".csv", results._moduleData,     head1 + "nb enseignants" + head2 );
-	results.writeReport_MI( "adepopro_ME_" + fn2[0] + ".txt", sortBySemester );
+	results.writeReport_MI( "adepopro_ME_" + fn2[0] + ".txt", sortBySemester, inputFormat );
 	results.writeReport_IM( "adepopro_EM_" + fn2[0] + ".txt" );
 
 }
