@@ -10,3 +10,5 @@ $(APP): $(APP).cpp
 install:
 	cp $(APP) /usr/local/bin/
 
+doc:
+	doxygen
