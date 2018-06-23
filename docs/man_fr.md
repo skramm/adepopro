@@ -3,7 +3,7 @@
 
 Voir https://github.com/skramm/adepopro
 
-(version du 2018-06-11)
+(version du 2018-06-23)
 
 ### Introduction
 
@@ -15,7 +15,7 @@ En effet, il semble que ni le client lourd, ni le client Web ne permettent d'obt
 * sur combien de jours, de semaines s'étale un module ?
 * combien de jours, de semaines d'intervention pour un enseignant ?
 
-Ce programme génère donc à partir d'un unique fichier d'entrée quatre fichiers de sortie regroupant toutes ces informations (voir ci-dessous).
+À partir d'un unique fichier d'entrée, généré à partir de ADE Campus, ce programme génère quatre fichiers de sortie regroupant toutes ces informations (voir ci-dessous).
 
 ### Procédure
 
@@ -48,31 +48,43 @@ En cas de succès, ceci va générer 4 fichiers dans le dossier courant:
  Contient la liste des modules avec pour chacun d'eux, le nombre de jours et de semaines d'activité, le volume CM,TD, TP, ainsi que le total et le nombre d'enseignants intervenant sur ce module.
 
 
-* 2 fichiers "texte"
+* 2 fichiers "texte", contenant un rapport synthétique:
   * ```adepopro_EM_monfichier.txt```
   * ```adepopro_ME_monfichier.txt```
 
 Ces fichiers donnent le détail des infos.
-* Le fichier "EM" (*Enseignant/Module*) donne pour chaque enseignant le détails des modules dans lequel il intervient, avec le volume correspondant.
+* Le fichier "EM" (*Enseignant/Module*) donne pour chaque enseignant le détails des modules dans lequel il intervient, avec le volume correspondant, exprimé en CM/TD/TP.
 * Le fichier "ME" (*Module/Enseignant*) donne pour chaque module la liste des enseignants qui interviennent, avec le volume correspondant.
 
 Les volumes sont exprimés en heures. Dans les fichiers .csv, ils apparaissent sous la forme:<br>
 ```vol_CM;vol_TD;vol_TP;total```
 
-Dans les fichiers texte (rapports), les volumes sont égalements donnés en "heures équivalent TD".
+Dans les fichiers texte (rapports), les volumes sont également donnés en "heures équivalent TD".
 Attention cependant, ceci utilise le calcul "classique"
 (CM: coeff. 3/2, TD: coeff. 1, TP: coeff. 2/3),
-et l'application de ce calcul depend du statut de l'enseignant.
+et l'application ou non de ce calcul pour la rémunération depend du statut de l'enseignant.
 
 Dans le fichier-rapport "ME", il est possible de mettre en oeuvre un regroupement avec calcul de sous total, à deux niveaux.
-Ceci est permis par le fait que le code-module encode généralement des informations telle que le semestre, l'unité d'enseignement ou la formation concernée.
+Ceci est possible uniquement si le code-module encode les informations telle que le semestre, l'unité d'enseignement ou la formation concernée.
 Attention cependant, ce tri n'est possible que via l'utilisation d'un seul caractère du code-module.
+
+Par exemple, si le code module est de la forme **ABC143** et que le 1er chiffre encode le semestre et le deuxième encode l'unité d'enseignement, alors on pourra utiliser ces caractères pour grouper les modules.
 
 ### Options
 
 Le programme supporte les deux options suivantes:
-* "-s" : le rapport texte par module d'enseignement sera regroupé par semestre. Ce dernier est encodé par le 5ème caractère du code-module.
+* "-s" : le rapport texte par module d'enseignement sera regroupé par sections, voir "Configuration".
 * "-p" : affiche les paramètres de fonctionnement.
+
+### Configuration
+
+Le programme est adaptable via un fichier texte de type ".ini": adepopro.ini
+Un exemple d'un tel fichier est fourni.
+
+On peut y spécifier:
+* les indices des colonnes dans le fichier d'entrée,
+* les positions des clés à utiliser pour le regroupement dans le rapport par module d'enseignement
+* l'intitulé de regroupement de 1er et 2ème niveau ("semestre", "Unité d'enseignement", "formation", ...)
 
 
 S. Kramm - 2018
