@@ -56,9 +56,17 @@ Ces fichiers donnent le détail des infos.
 * Le fichier "EM" (*Enseignant/Module*) donne pour chaque enseignant le détails des modules dans lequel il intervient, avec le volume correspondant.
 * Le fichier "ME" (*Module/Enseignant*) donne pour chaque module la liste des enseignants qui interviennent, avec le volume correspondant.
 
-Les volumes sont exprimés en heures, et sous la forme:<br>
+Les volumes sont exprimés en heures. Dans les fichiers .csv, ils apparaissent sous la forme:<br>
 ```vol_CM;vol_TD;vol_TP;total```
 
+Dans les fichiers texte (rapports), les volumes sont égalements donnés en "heures équivalent TD".
+Attention cependant, ceci utilise le calcul "classique"
+(CM: coeff. 3/2, TD: coeff. 1, TP: coeff. 2/3),
+et l'application de ce calcul depend du statut de l'enseignant.
+
+Dans le fichier-rapport "ME", il est possible de mettre en oeuvre un regroupement avec calcul de sous total, à deux niveaux.
+Ceci est permis par le fait que le code-module encode généralement des informations telle que le semestre, l'unité d'enseignement ou la formation concernée.
+Attention cependant, ce tri n'est possible que via l'utilisation d'un seul caractère du code-module.
 
 ### Options
 

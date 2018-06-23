@@ -27,7 +27,7 @@ Command-line options:
 
 #include <boost/format.hpp> // testing...
 
-/// global Output Char Separator
+/// global Output Char Separator for csv files
 char g_ocs = ';';
 //-------------------------------------------------------------------
 enum EN_WeekDay { WD_LUN, WD_MAR, WD_MER, WD_JEU, WD_VEN };
@@ -131,6 +131,10 @@ public:
 	{
 		return _vol[0] + _vol[1] + _vol[2];
 	}
+	float sumEqTD() const
+	{
+		return _vol[0]*3/2 + _vol[1] + _vol[2]*2/3;
+	}
 	friend std::ostream& operator << ( std::ostream& f, const Triplet& tri )
 	{
 		f << tri._vol[0] << g_ocs << tri._vol[1] << g_ocs << tri._vol[2] << g_ocs << tri.sum();
@@ -138,7 +142,8 @@ public:
 	}
 	void printAsText( std::ostream& f ) const
 	{
-		f << "CM: " << _vol[0] << "h. - TD: " << _vol[1] << "h. - TP: " << _vol[2] << "h.";
+		f << "CM: " << _vol[0] << " h. - TD: " << _vol[1] << " h. - TP: " << _vol[2] << " h., total: "
+			<< sum() << " h., heqTD: " << sumEqTD() << " h.";
 	}
 	void printTabulated( std::ostream& f, int tab_size, EN_PrintSum psum=PrintSumNo, EN_PrintEqTd peqtd=PrintEqTdNo ) const
 	{
@@ -159,7 +164,7 @@ public:
 		}
 		if( peqtd == PrintEqTdYes )
 		{
-			f << " heqTD = " << _vol[0]*3/2 + _vol[1] + _vol[2]*2/3 << " h.";
+			f << " heqTD = " << sumEqTD() << " h.";
 		}
 	}
 	void clear()
@@ -291,7 +296,7 @@ printString( std::ofstream& f, std::string str, size_t size_max )
 }
 //-------------------------------------------------------------------
 Triplet
-printCurrentElement( std::ofstream& file, const TripletMap& tmap, size_t max_first )
+printTripletMap( std::ofstream& file, const TripletMap& tmap, size_t max_first )
 {
 	int tab_size = 6;
 	Triplet sum;
@@ -326,21 +331,20 @@ std::map<ColIndex,std::string> g_colIndexStr = {
 	{ CI_Instructor, "colEns"     },
 	{ CI_Module,     "colModule"  }
 };
-
 //-------------------------------------------------------------------
+/// Distributes the elements in \c rvm in several maps of same type, based on the value of character \c sortLevel1_pos
 std::map<char,ResourceVolumeMap>
-distributeSemesters( const ResourceVolumeMap& rvm, int semesterFieldIndex )
+distributeMap( const ResourceVolumeMap& rvm, int sortLevel1_pos )
 {
 	std::map<char,ResourceVolumeMap> out;
 	for( const auto& elem: rvm )
 	{
-		auto semester = elem.first.substr( semesterFieldIndex, 1 ).at(0);
-		auto& current = out[semester];
+		auto index_char = elem.first.substr( sortLevel1_pos, 1 ).at(0);
+		auto& current = out[index_char];
 		current[elem.first] = elem.second;
 	}
 	return out;
 }
-
 //-------------------------------------------------------------------
 /// Holds the fields indexes of input file
 /// \todo add reading of these in a .ini file
@@ -349,7 +353,8 @@ struct InputFormat
 	char delimiter = ';';
 	char commentChar = '#';
 	std::map<ColIndex,int> colIndex;
-	int semesterFieldIndex = 4; /// \todo add this
+	int sortLevel1_pos = 4; ///< char position of sorting level 1
+	int sortLevel2_pos = 5; ///< char position of sorting level 2
 
 	/// constructor, assigns default values
 	InputFormat()
@@ -408,6 +413,20 @@ findMaxStringSize( const ResourceVolumeMap& rvm )
 		res = std::max( res, it->first.size() );
 	}
 	return res;
+}
+//-------------------------------------------------------------------
+//template<typename T>
+Triplet
+printMap( std::ofstream& file, const std::map<std::string,TripletMap>& mapData, std::string text, size_t max_size )
+{
+	Triplet sum;
+	for( const auto& elem: mapData )
+	{
+		file << "- " << text << ": " << elem.first << '\n';
+		auto s = printTripletMap( file, elem.second, max_size );
+		sum += s;
+	}
+	return sum;
 }
 //-------------------------------------------------------------------
 /// Holds all the data read from the file, along with the processing functions
@@ -477,41 +496,56 @@ struct Data
 /**
 If option \c sortBySemester is true, modules will be grouped by semester
 */
-	void writeReport_MI( std::string fn, bool sortBySemester, const InputFormat& params )
+	void writeReport_MI( std::string fn, bool sortLevel_1, bool sortLevel_2, const InputFormat& params )
 	{
 		auto file = openFile( fn, "Bilan module/enseignant" );
 
 		auto max_size = findMaxStringSize( _mod_prof );
-//		std::cout << __FUNCTION__ << "(): max_size=" << max_size << '\n';
+
 		Triplet bigsum;
-		if( sortBySemester )
+		if( sortLevel_1 )
 		{
-			Triplet sum_sem;
-			auto sem_map = distributeSemesters( _mod_prof, params.semesterFieldIndex );
-			for( const auto& elem1: sem_map )
+			auto mapLevel_1 = distributeMap( _mod_prof, params.sortLevel1_pos );
+			for( const auto& elem1: mapLevel_1 )
 			{
-				file << "\n *** SEMESTRE " << elem1.first << " *** \n\n";
+				Triplet sumLevel_1;
+				file << "*** SEMESTRE " << elem1.first << " ***\n\n";
 				const auto current = elem1.second;
-				for( const auto& elem2: current )
+				if( sortLevel_2 )
 				{
-					file << "- module:" << elem2.first << '\n';
-					auto s = printCurrentElement( file, elem2.second, max_size );
-					bigsum  += s;
-					sum_sem += s;
+					Triplet sumLevel_2;
+					auto mapLevel2 = distributeMap( current, params.sortLevel2_pos );
+
+					for( const auto& elem1: mapLevel2 )
+					{
+						file << "** UE " << elem1.first << " **\n\n";
+						auto tot = printMap( file, elem1.second, "module", max_size );
+						file << "* Total UE " << elem1.first << ": ";
+						tot.printAsText( file );
+						file << "\n\n";
+						bigsum     += tot;
+						sumLevel_1 += tot;
+					}
 				}
-				file << "* Total semestre " << elem1.first << " = " << sum_sem << '\n';
+				else
+				{
+					auto tot = printMap( file, current, "module", max_size );
+					bigsum     += tot;
+					sumLevel_1 += tot;
+				}
+				file << "* Total semestre " << elem1.first << ": ";
+				sumLevel_1.printAsText( file );
+				file << "\n\n";
 			}
 		}
 		else
 		{
-			for( const auto& elem1: _mod_prof )
-			{
-				file << "- module:" << elem1.first << '\n';
-				auto s = printCurrentElement( file, elem1.second, max_size );
-				bigsum  += s;
-			}
+			auto tot = printMap( file, _mod_prof, "module", max_size );
+			bigsum  += tot;
 		}
-		file << "\n*** TOTAL GENERAL ***\n" << bigsum << '\n';
+		file << "\n*** TOTAL GENERAL ***\n";
+		bigsum.printAsText( file );
+		file << "\n";
 	}
 
 /// write report of Instructor / Modules
@@ -526,7 +560,7 @@ If option \c sortBySemester is true, modules will be grouped by semester
 		for( const auto& elem1: _prof_mod )
 		{
 			file << "Enseignant:" << elem1.first << '\n';
-			bigsum += printCurrentElement( file, elem1.second, max_size );
+			bigsum += printTripletMap( file, elem1.second, max_size );
 		}
 		file << "\n*** TOTAL GENERAL ***\n" << bigsum << '\n';
 	}
@@ -626,12 +660,12 @@ int main( int argc, char* argv[] )
 	assert( fn2.size() > 0 );
 
 // csv output file headers
-	std::string head1 = "#Nom;Nb jours;Nb sem;vol. CM;vol. TD;vol. TP;vol. total;";
+	std::string head1 = "# Nom;Nb jours;Nb sem;vol. CM;vol. TD;vol. TP;vol. total;";
 	std::string head2 = ";ratio vol. total/nb jours";
 
 	results.writeCsv( "adepopro_E_" + fn2[0] + ".csv", results._instructorData, head1 + "nb modules"     + head2 );
 	results.writeCsv( "adepopro_M_" + fn2[0] + ".csv", results._moduleData,     head1 + "nb enseignants" + head2 );
-	results.writeReport_MI( "adepopro_ME_" + fn2[0] + ".txt", sortBySemester, inputFormat );
+	results.writeReport_MI( "adepopro_ME_" + fn2[0] + ".txt", sortBySemester, true, inputFormat );
 	results.writeReport_IM( "adepopro_EM_" + fn2[0] + ".txt" );
 
 }

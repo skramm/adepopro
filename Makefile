@@ -12,3 +12,6 @@ install:
 
 doc:
 	doxygen
+
+test: $(APP)
+	./$(APP) -s sample_input.csv

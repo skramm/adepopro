@@ -2,14 +2,14 @@
 
 (see https://www.adesoft.com/ade-campus/)
 
-* Status: preliminar
+* Status: beta
 * Language: C++ (C++11 actually)
 * Licence: GPL v3
 * Author: S. Kramm
 * Hosting: https://github.com/skramm/adepopro
 * Manual (fr-only): [online here](https://github.com/skramm/adepopro/blob/master/docs/man_fr.md)
 
-This is a tool related to the sofware ADE Campus, if you are not a user of this, you probably will not be concerned.<br>
+This is a tool related to the software ADE Campus, if you are not a user of this, you probably will not be concerned.<br>
 See https://www.adesoft.com/ade-campus/ for details.
 
 #### Motivation:
@@ -34,13 +34,18 @@ Once this is done, the program is launched with:
 ```
 adepopro <csv_input_file>
 ```
+To give it a try, a sample data file is provided, so once built, you can enter:
+```
+adepopro -s sample_input.csv
+```
+and checkout the 4 files that it will generate.
 
 #### Building:
 
 You will need a C++11 compliant compiler installed on your machine.
 
 * If you have the CodeBlocks IDE installed on your machine, you should be able to build by opening the project file ```adepopro.cbp``` and hitting F9
-* If you have GnuMake, you can build the app by entering
+* If you have GnuMake, you can build the app by entering:
 ```
 make
 ```
@@ -50,7 +55,8 @@ g++ -std=c++11 -o adepopro adepopro.cpp
 ```
 
 Error handling: at present, in case of malformed input file, an assert is raised and execution stops.
-This could be improved.
+This could (will ?) be improved.
 
 
-(1) - ADE-Campus provides an API that theorically could avoid this manual data extraction, however the documentation is too sparse to make it possible at present. Maybe that could be an improvement in the future.
+(1) - ADE-Campus provides an API that theorically could avoid this manual data extraction,
+however the documentation is too sparse to make it possible at present. Maybe that could be an improvement in the future.
