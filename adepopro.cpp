@@ -354,10 +354,12 @@ struct Params
 	char delimiter_in = ';';
 	char commentChar = '#';
 	std::map<ColIndex,int> colIndex;
-	int groupKey_1_pos = 4; ///< char position of sorting level 1
-	int groupKey_2_pos = 5; ///< char position of sorting level 2
-	bool groupKey_1 = false;
-	bool groupKey_2 = false;
+	bool        groupKey1      = false;
+	bool        groupKey2      = false;
+	int         groupKey1_pos  = 4; ///< char position of group level 1
+	int         groupKey2_pos  = 5; ///< char position of group level 2
+	std::string groupKey1_name = "Semestre";
+	std::string groupKey2_name = "UE";
 
 	private:
 		boost::property_tree::ptree _ptree;
@@ -379,10 +381,14 @@ struct Params
 		if( hasIniFile )
 		{
 			std::cout << "reading data in config file " << filename << '\n';
-			groupKey_1 = (bool)_ptree.get<int>( "grouping.groupKey1", groupKey_1 );
-			groupKey_2 = (bool)_ptree.get<int>( "grouping.groupKey2", groupKey_2 );
-			groupKey_1_pos = _ptree.get<int>( "grouping.groupKey1_pos", groupKey_1_pos );
-			groupKey_2_pos = _ptree.get<int>( "grouping.groupKey2_pos", groupKey_2_pos );
+			groupKey1 = (bool)_ptree.get<int>( "grouping.groupKey1", groupKey1 );
+			groupKey2 = (bool)_ptree.get<int>( "grouping.groupKey2", groupKey2 );
+
+			groupKey1_name = _ptree.get<std::string>( "grouping.groupKey1_name", groupKey1_name );
+			groupKey2_name = _ptree.get<std::string>( "grouping.groupKey2_name", groupKey2_name );
+
+			groupKey1_pos = _ptree.get<int>( "grouping.groupKey1_pos", groupKey1_pos );
+			groupKey2_pos = _ptree.get<int>( "grouping.groupKey2_pos", groupKey2_pos );
 			for( const auto& map_key: g_colIndexStr)
 				colIndex[map_key.first] = _ptree.get<int>( "columns." + map_key.second, colIndex[map_key.first] );
 		}
@@ -412,19 +418,30 @@ struct Params
 	friend std::ostream& operator << ( std::ostream& f, const Params& p )
 	{
 		f << "Input File parameters:"
-			<< "\n -delimiter='"   << p.delimiter_in   << '\''
-			<< "\n -commentChar='" << p.commentChar << '\''
+			<< "\n -input file delimiter='" << p.delimiter_in   << '\''
+			<< "\n -input file comment character='" << p.commentChar << '\''
 			<< "\n - grouping:" << std::boolalpha
-			<< "\n  - key1: " << p.groupKey_1 << " pos=" << p.groupKey_1_pos
-			<< "\n  - key2: " << p.groupKey_2 << " pos=" << p.groupKey_2_pos
+			<< "\n  - key1: " << p.groupKey1 << ", pos=" << p.groupKey1_pos << ", name=" << p.groupKey1_name
+			<< "\n  - key2: " << p.groupKey2 << ", pos=" << p.groupKey2_pos << ", name=" << p.groupKey2_name
 			<< "\n -input file indexes:\n";
-
 		for( size_t i=0; i<g_colIndexStr.size(); i++ )
 			f << "  -" << g_colIndexStr[(ColIndex)i] << ": " << p.colIndex.at((ColIndex)i) << '\n';
 		f << " -highest index = " << p.getHighestIndex() << '\n';
 		return f;
 	}
 };
+//-------------------------------------------------------------------
+/// From https://stackoverflow.com/a/4063229/193789
+/// DOES NOT WORK ???
+size_t
+getStringSize_utf8( std::string str )
+{
+	size_t len=0;
+	auto s = str.c_str();
+	while( *s )
+		len += (*s++ & 0xc0) != 0x80;
+	return len;
+}
 //-------------------------------------------------------------------
 /// Returns the max size of the string in key
 size_t
@@ -440,10 +457,13 @@ findMaxStringSize( const ResourceVolumeMap& rvm )
 			[]                                               // lambda
 			( const PairType& p1, const PairType& p2 )
 			{
+#if 0
 				return p1.first.size() < p2.first.size();
+#else
+				return getStringSize_utf8(p1.first) < getStringSize_utf8(p2.first);
+#endif
 			}
 		);
-//		std::cout << "it:" << it->first;
 		res = std::max( res, it->first.size() );
 	}
 	return res;
@@ -527,31 +547,29 @@ struct Data
 	}
 
 /// write report of Modules / Instructor
-	void writeReport_MI( std::string fn, bool sortLevel_1, bool sortLevel_2, const Params& params )
+	void writeReport_MI( std::string fn, const Params& params )
 	{
-		auto file = openFile( fn, "Bilan module/enseignant" );
-
+		auto file = openFile( fn, "Bilan par module" );
 		auto max_size = findMaxStringSize( _mod_prof );
 
 		Triplet bigsum;
-		if( sortLevel_1 )
+		if( params.groupKey1 )
 		{
-			auto mapLevel_1 = distributeMap( _mod_prof, params.groupKey_1_pos );
+			auto mapLevel_1 = distributeMap( _mod_prof, params.groupKey1_pos );
 			for( const auto& elem1: mapLevel_1 )
 			{
 				Triplet sumLevel_1;
-				file << "*** SEMESTRE " << elem1.first << " ***\n\n";
+				file << "*** " << params.groupKey1_name << ": " << elem1.first << " ***\n\n";
 				const auto current = elem1.second;
-				if( sortLevel_2 )
+				if( params.groupKey2 )
 				{
 					Triplet sumLevel_2;
-					auto mapLevel2 = distributeMap( current, params.groupKey_2_pos );
-
-					for( const auto& elem1: mapLevel2 )
+					auto mapLevel_2 = distributeMap( current, params.groupKey2_pos );
+					for( const auto& elem1: mapLevel_2 )
 					{
-						file << "** UE " << elem1.first << " **\n\n";
+						file << "** " << params.groupKey2_name << ": " << elem1.first << " **\n\n";
 						auto tot = printMap( file, elem1.second, "module", max_size );
-						file << "* Total UE " << elem1.first << ": ";
+						file << "* Total " << params.groupKey2_name << elem1.first << ": ";
 						tot.printAsText( file );
 						file << "\n\n";
 						bigsum     += tot;
@@ -564,7 +582,7 @@ struct Data
 					bigsum     += tot;
 					sumLevel_1 += tot;
 				}
-				file << "* Total semestre " << elem1.first << ": ";
+				file << "* Total " << params.groupKey1_name << ' ' << elem1.first << ": ";
 				sumLevel_1.printAsText( file );
 				file << "\n\n";
 			}
@@ -582,7 +600,7 @@ struct Data
 /// write report of Instructor / Modules
 	void writeReport_IM( std::string fn )
 	{
-		auto file = openFile( fn, "Bilan enseignant/module" );
+		auto file = openFile( fn, "Bilan par enseignant" );
 
 		auto max_size = findMaxStringSize( _prof_mod );
 //		std::cout << __FUNCTION__ << "(): max_size=" << max_size << '\n';
@@ -628,7 +646,7 @@ int main( int argc, char* argv[] )
 		for( int i=1; i<argc; i++ )
 		{
 			if( std::string(argv[i]) == "-s" )
-				params.groupKey_1_pos = true;
+				params.groupKey1 = true;
 			if( std::string(argv[i]) == "-p" )
 				printOptions = true;
 		}
@@ -692,7 +710,7 @@ int main( int argc, char* argv[] )
 
 	results.writeCsv( "adepopro_E_" + fn2[0] + ".csv", results._instructorData, head1 + "nb modules"     + head2 );
 	results.writeCsv( "adepopro_M_" + fn2[0] + ".csv", results._moduleData,     head1 + "nb enseignants" + head2 );
-	results.writeReport_MI( "adepopro_ME_" + fn2[0] + ".txt", params.groupKey_1, params.groupKey_2, params );
+	results.writeReport_MI( "adepopro_ME_" + fn2[0] + ".txt", params );
 	results.writeReport_IM( "adepopro_EM_" + fn2[0] + ".txt" );
 
 }
