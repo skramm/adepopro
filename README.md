@@ -43,6 +43,9 @@ and checkout the 4 files that it will generate.
 #### Building:
 
 You will need a C++11 compliant compiler installed on your machine.
+This program also has dependencies on two Boost libraries:
+* boost::format
+* boost::property_tree
 
 * If you have the CodeBlocks IDE installed on your machine, you should be able to build by opening the project file ```adepopro.cbp``` and hitting F9
 * If you have GnuMake, you can build the app by entering:

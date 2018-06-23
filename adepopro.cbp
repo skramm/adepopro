@@ -28,6 +28,7 @@
 		<Unit filename="Makefile" />
 		<Unit filename="README.md" />
 		<Unit filename="adepopro.cpp" />
+		<Unit filename="adepopro.ini" />
 		<Unit filename="docs/man_fr.md" />
 		<Extensions>
 			<envvars />

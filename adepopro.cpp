@@ -23,9 +23,11 @@ Command-line options:
 #include <string>
 #include <fstream>
 #include <sstream>
-#include <iostream> // needed for expansion of SPAG_LOG
+#include <iostream>
 
-#include <boost/format.hpp> // testing...
+#include <boost/format.hpp>
+#include <boost/property_tree/ptree.hpp>
+#include <boost/property_tree/ini_parser.hpp>
 
 /// global Output Char Separator for csv files
 char g_ocs = ';';
@@ -319,11 +321,25 @@ printTripletMap( std::ofstream& file, const TripletMap& tmap, size_t max_first )
 	return sum;
 }
 //-------------------------------------------------------------------
+/// Distributes the elements in \c rvm in several maps of same type, based on the value of character \c groupKey
+std::map<char,ResourceVolumeMap>
+distributeMap( const ResourceVolumeMap& rvm, int groupKey )
+{
+	std::map<char,ResourceVolumeMap> out;
+	for( const auto& elem: rvm )
+	{
+		auto index_char = elem.first.substr( groupKey, 1 ).at(0);
+		auto& current = out[index_char];
+		current[elem.first] = elem.second;
+	}
+	return out;
+}
+//-------------------------------------------------------------------
 /// Describes the fields we want to read in the input file
 enum ColIndex : char { CI_Week, CI_Day, CI_Duration, CI_Instructor, CI_Module };
 
 //-------------------------------------------------------------------
-/// Unused at present, wil be used to read these in .ini file, see InputFormat
+/// Unused at present, wil be used to read these in .ini file, see Params
 std::map<ColIndex,std::string> g_colIndexStr = {
 	{ CI_Week,       "colSemaine" },
 	{ CI_Day,        "colJour"    },
@@ -332,32 +348,47 @@ std::map<ColIndex,std::string> g_colIndexStr = {
 	{ CI_Module,     "colModule"  }
 };
 //-------------------------------------------------------------------
-/// Distributes the elements in \c rvm in several maps of same type, based on the value of character \c sortLevel1_pos
-std::map<char,ResourceVolumeMap>
-distributeMap( const ResourceVolumeMap& rvm, int sortLevel1_pos )
+/// Holds all the runtime parameters (fields indexes of input file, ...)
+struct Params
 {
-	std::map<char,ResourceVolumeMap> out;
-	for( const auto& elem: rvm )
-	{
-		auto index_char = elem.first.substr( sortLevel1_pos, 1 ).at(0);
-		auto& current = out[index_char];
-		current[elem.first] = elem.second;
-	}
-	return out;
-}
-//-------------------------------------------------------------------
-/// Holds the fields indexes of input file
-/// \todo add reading of these in a .ini file
-struct InputFormat
-{
-	char delimiter = ';';
+	char delimiter_in = ';';
 	char commentChar = '#';
 	std::map<ColIndex,int> colIndex;
-	int sortLevel1_pos = 4; ///< char position of sorting level 1
-	int sortLevel2_pos = 5; ///< char position of sorting level 2
+	int groupKey_1_pos = 4; ///< char position of sorting level 1
+	int groupKey_2_pos = 5; ///< char position of sorting level 2
+	bool groupKey_1 = false;
+	bool groupKey_2 = false;
 
-	/// constructor, assigns default values
-	InputFormat()
+	private:
+		boost::property_tree::ptree _ptree;
+
+	public:
+	/// constructor, calls main constructor an tries to read .ini file
+	Params( std::string filename ): Params()
+	{
+		bool hasIniFile = true;
+		try
+		{
+			boost::property_tree::ini_parser::read_ini( filename, _ptree );
+		}
+		catch( const std::exception& e )
+		{
+			std::cerr << "No file " << filename << ", keeping defaults\n";
+			hasIniFile = false;
+		}
+		if( hasIniFile )
+		{
+			std::cout << "reading data in config file " << filename << '\n';
+			groupKey_1 = (bool)_ptree.get<int>( "grouping.groupKey1", groupKey_1 );
+			groupKey_2 = (bool)_ptree.get<int>( "grouping.groupKey2", groupKey_2 );
+			groupKey_1_pos = _ptree.get<int>( "grouping.groupKey1_pos", groupKey_1_pos );
+			groupKey_2_pos = _ptree.get<int>( "grouping.groupKey2_pos", groupKey_2_pos );
+			for( const auto& map_key: g_colIndexStr)
+				colIndex[map_key.first] = _ptree.get<int>( "columns." + map_key.second, colIndex[map_key.first] );
+		}
+	}
+	/// Constructor, assigns default values
+	Params()
 	{
 		colIndex[CI_Week]       = 0;
 		colIndex[CI_Day]        = 1;
@@ -378,16 +409,19 @@ struct InputFormat
 		)->second;
 	}
 
-	friend std::ostream& operator << ( std::ostream& f, const InputFormat& ifor )
+	friend std::ostream& operator << ( std::ostream& f, const Params& p )
 	{
 		f << "Input File parameters:"
-			<< "\n -delimiter='"   << ifor.delimiter   << '\''
-			<< "\n -commentChar='" << ifor.commentChar << '\''
+			<< "\n -delimiter='"   << p.delimiter_in   << '\''
+			<< "\n -commentChar='" << p.commentChar << '\''
+			<< "\n - grouping:" << std::boolalpha
+			<< "\n  - key1: " << p.groupKey_1 << " pos=" << p.groupKey_1_pos
+			<< "\n  - key2: " << p.groupKey_2 << " pos=" << p.groupKey_2_pos
 			<< "\n -input file indexes:\n";
 
 		for( size_t i=0; i<g_colIndexStr.size(); i++ )
-			f << "  -" << g_colIndexStr[(ColIndex)i] << ": " << ifor.colIndex.at((ColIndex)i) << '\n';
-		f << " -highest index = " << ifor.getHighestIndex() << '\n';
+			f << "  -" << g_colIndexStr[(ColIndex)i] << ": " << p.colIndex.at((ColIndex)i) << '\n';
+		f << " -highest index = " << p.getHighestIndex() << '\n';
 		return f;
 	}
 };
@@ -493,10 +527,7 @@ struct Data
 	}
 
 /// write report of Modules / Instructor
-/**
-If option \c sortBySemester is true, modules will be grouped by semester
-*/
-	void writeReport_MI( std::string fn, bool sortLevel_1, bool sortLevel_2, const InputFormat& params )
+	void writeReport_MI( std::string fn, bool sortLevel_1, bool sortLevel_2, const Params& params )
 	{
 		auto file = openFile( fn, "Bilan module/enseignant" );
 
@@ -505,7 +536,7 @@ If option \c sortBySemester is true, modules will be grouped by semester
 		Triplet bigsum;
 		if( sortLevel_1 )
 		{
-			auto mapLevel_1 = distributeMap( _mod_prof, params.sortLevel1_pos );
+			auto mapLevel_1 = distributeMap( _mod_prof, params.groupKey_1_pos );
 			for( const auto& elem1: mapLevel_1 )
 			{
 				Triplet sumLevel_1;
@@ -514,7 +545,7 @@ If option \c sortBySemester is true, modules will be grouped by semester
 				if( sortLevel_2 )
 				{
 					Triplet sumLevel_2;
-					auto mapLevel2 = distributeMap( current, params.sortLevel2_pos );
+					auto mapLevel2 = distributeMap( current, params.groupKey_2_pos );
 
 					for( const auto& elem1: mapLevel2 )
 					{
@@ -589,18 +620,23 @@ int main( int argc, char* argv[] )
 		return 1;
 	}
 	std::string fn_in = argv[argc-1];
+	Params params( "adepopro.ini" ); // attemps to read in file, else keeps default values
 
-	bool sortBySemester = false;
 	bool printOptions = false;
-	if( argc > 2 )
+	if( argc > 1 )
 	{
-		for( int i=1; i<argc-1; i++ )
+		for( int i=1; i<argc; i++ )
 		{
 			if( std::string(argv[i]) == "-s" )
-				sortBySemester = true;
+				params.groupKey_1_pos = true;
 			if( std::string(argv[i]) == "-p" )
 				printOptions = true;
 		}
+	}
+	if( printOptions )
+	{
+		std::cout << params << '\n';
+		return 1;
 	}
 
 	std::ifstream file( fn_in );
@@ -609,15 +645,6 @@ int main( int argc, char* argv[] )
 
 	Data results;
 
-	InputFormat inputFormat;
-/// \todo here, insert reading options in ini file
-
-
-	if( printOptions )
-	{
-		std::cout << inputFormat << '\n';
-		return 1;
-	}
 	std::string buff;
 	int line = 0;
 	while ( getline (file, buff ) )
@@ -625,22 +652,22 @@ int main( int argc, char* argv[] )
 		line++;
 //		std::cout << "line " << line << ": " << buff << '\n';
 
-		auto v_str = split_string( buff, inputFormat.delimiter );
-		if( v_str.size() < inputFormat.getHighestIndex() && !v_str.empty() )
+		auto v_str = split_string( buff, params.delimiter_in );
+		if( v_str.size() < params.getHighestIndex() && !v_str.empty() )
 		{
-			std::cout << "erreur, champ manquants: " << v_str.size() << " au lieu de " << inputFormat.getHighestIndex() << " au minimum:\n" << buff << '\n';
+			std::cout << "erreur, champ manquants: " << v_str.size() << " au lieu de " << params.getHighestIndex() << " au minimum:\n" << buff << '\n';
 			for( auto s: v_str )
 				std::cout << "-" << s << '\n';
 			throw std::runtime_error("error");
 		}
 		if( !v_str.empty() )
-		if( !v_str[0].empty() && v_str[0].front() != inputFormat.commentChar )
+		if( !v_str[0].empty() && v_str[0].front() != params.commentChar )
 		{
-			auto week_num = getWeekNum(  v_str.at(inputFormat.colIndex[CI_Week])      );
-			auto weekday  = getWeekDay(  v_str.at(inputFormat.colIndex[CI_Day])       );
-			auto duration = getDuration( v_str.at(inputFormat.colIndex[CI_Duration])  );
-			auto name     =              v_str.at(inputFormat.colIndex[CI_Instructor] );
-			auto code     =              v_str.at(inputFormat.colIndex[CI_Module]     );
+			auto week_num = getWeekNum(  v_str.at(params.colIndex[CI_Week])      );
+			auto weekday  = getWeekDay(  v_str.at(params.colIndex[CI_Day])       );
+			auto duration = getDuration( v_str.at(params.colIndex[CI_Duration])  );
+			auto name     =              v_str.at(params.colIndex[CI_Instructor] );
+			auto code     =              v_str.at(params.colIndex[CI_Module]     );
 
 			if( !code.empty() )
 			{
@@ -665,7 +692,7 @@ int main( int argc, char* argv[] )
 
 	results.writeCsv( "adepopro_E_" + fn2[0] + ".csv", results._instructorData, head1 + "nb modules"     + head2 );
 	results.writeCsv( "adepopro_M_" + fn2[0] + ".csv", results._moduleData,     head1 + "nb enseignants" + head2 );
-	results.writeReport_MI( "adepopro_ME_" + fn2[0] + ".txt", sortBySemester, true, inputFormat );
+	results.writeReport_MI( "adepopro_ME_" + fn2[0] + ".txt", params.groupKey_1, params.groupKey_2, params );
 	results.writeReport_IM( "adepopro_EM_" + fn2[0] + ".txt" );
 
 }
