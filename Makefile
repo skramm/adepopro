@@ -7,7 +7,7 @@ all: $(APP)
 $(APP): $(APP).cpp
 	g++ -std=c++11 -o $(APP) $(APP).cpp
 
-install:
+install: $(APP)
 	cp $(APP) /usr/local/bin/
 
 doc:
