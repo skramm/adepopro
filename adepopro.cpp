@@ -335,6 +335,30 @@ distributeMap( const ResourceVolumeMap& rvm, int groupKey )
 	return out;
 }
 //-------------------------------------------------------------------
+/// Analyse pair map string
+/**
+- Input string: A-BBB;C-DDD;E-GGG
+(first element is a single char)
+*/
+std::map<char,std::string>
+extractPairs( std::string in_str )
+{
+	std::map<char,std::string> pair_map;
+	auto v_str = split_string( in_str, ';' );
+	for( const auto& elem: v_str )
+	{
+		auto v_pair = split_string( elem, '-' );
+		if( v_pair.size() != 2 )
+			throw std::runtime_error( "Error, invalid pair in config file:" + in_str );
+		if( v_pair[0].size() == 0 )
+			throw std::runtime_error( "Error, first element of pair in config file is invalid,  pair:" + elem );
+
+		pair_map[ v_pair[0].front() ] = v_pair[1];
+	}
+	return pair_map;
+}
+
+//-------------------------------------------------------------------
 /// Describes the fields we want to read in the input file
 enum ColIndex : char { CI_Week, CI_Day, CI_Duration, CI_Instructor, CI_Module };
 
@@ -360,6 +384,8 @@ struct Params
 	int         groupKey2_pos  = 5; ///< char position of group level 2
 	std::string groupKey1_name = "Semestre";
 	std::string groupKey2_name = "UE";
+	std::map<char,std::string> groupKey1_pairs;
+	std::map<char,std::string> groupKey2_pairs;
 
 	private:
 		boost::property_tree::ptree _ptree;
@@ -389,6 +415,15 @@ struct Params
 
 			groupKey1_pos = _ptree.get<int>( "grouping.groupKey1_pos", groupKey1_pos );
 			groupKey2_pos = _ptree.get<int>( "grouping.groupKey2_pos", groupKey2_pos );
+
+			std::string pairs_1 = _ptree.get<std::string>( "grouping.groupKey1_pairs", std::string() );
+			std::string pairs_2 = _ptree.get<std::string>( "grouping.groupKey2_pairs", std::string() );
+
+			if( !pairs_1.empty() )
+				groupKey1_pairs = extractPairs( pairs_1 );
+			if( !pairs_2.empty() )
+				groupKey2_pairs = extractPairs( pairs_2 );
+
 			for( const auto& map_key: g_colIndexStr)
 				colIndex[map_key.first] = _ptree.get<int>( "columns." + map_key.second, colIndex[map_key.first] );
 		}
