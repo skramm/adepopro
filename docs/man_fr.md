@@ -64,11 +64,41 @@ Attention cependant, ceci utilise le calcul "classique"
 (CM: coeff. 3/2, TD: coeff. 1, TP: coeff. 2/3),
 et l'application ou non de ce calcul pour la rémunération depend du statut de l'enseignant.
 
-Dans le fichier-rapport "ME", il est possible de mettre en oeuvre un regroupement avec calcul de sous total, à deux niveaux.
-Ceci est possible uniquement si le code-module encode les informations telle que le semestre, l'unité d'enseignement ou la formation concernée.
+### Regroupement demodules ###
+
+Très souvent, le code module d'un enseignement "encode" de façon alpha numérique des informations comme par exemple le semestre, l'unité d'enseignement ou la formation concernée.
+Dans le fichier-rapport "ME", il est possible de mettre en oeuvre un regroupement avec calcul de sous total sur la base de ces codes, à deux niveaux.
 Attention cependant, ce tri n'est possible que via l'utilisation d'un seul caractère du code-module.
 
-Par exemple, si le code module est de la forme **ABC143** et que le 1er chiffre encode le semestre et le deuxième encode l'unité d'enseignement, alors on pourra utiliser ces caractères pour grouper les modules.
+Par exemple, si le code module est de la forme **ABC143** et que le 1er chiffre encode le semestre et le deuxième encode l'unité d'enseignement,
+alors on pourra utiliser ces caractères pour grouper les modules.
+Ceci se paramètre dans le fichier de configuration, via les clés de la section ```[grouping]```:
+Pour activer le regroupement de 1er niveau, il faut mettre la clé ```groupKey1``` à 1.
+De façon similaire (et uniquement si la clé précédente est activée), on pourra activer le  regroupement de 2ème niveau avec ```groupKey2=1```.
+
+Les caractères à considérer dans le code module pour effectuer ce regroupement sont donnés par les clés
+```groupKey1_pos``` et ```groupKey2_pos``` (indice commencant à 0 pour le 1er caractère de la chaîne).
+
+L'intitulé de ce qu'on veut regrouper est à indiquer dans les clés
+```groupKey1_name``` et ```groupKey1_name```.
+
+Par exemple, si le code module est de la forme ABC1XYZ pour un module du 1er semestre et ABC2QSD pour un module du second semestre
+et qu'on souhaite activer un regroupement par semestre, alors il faudra spécifier:
+```
+groupKey1=1
+groupKey1_name=Semestre
+groupKey1_pos=3
+```
+
+Le fichier de sortie "ME" sera alors découpé en autant de sections qu'il y a de valeurs pour le 4ème caractère du code-module, et présentera un sous-total par semestre:
+```
+*** Semestre: 1 ***
+...
+...
+...
+* Total Semestre 1: CM: 124.5 h. - TD: 433.5 h. - TP: 1180.5 h., total: 1738.5 h., heqTD: 1407.25 h.
+```
+
 
 ### Options
 

@@ -547,7 +547,7 @@ printMap( std::ofstream& file, const std::map<std::string,TripletMap>& mapData, 
 void
 printGroupKeyLabel( std::ostream& file, char key, const std::map<char,std::string>& key_map_string )
 {
-	if( key_map_string.at(key).empty() )
+	if( 0==key_map_string.count(key) || key_map_string.at(key).empty() )
 		file << key;
 	else
 		file << key_map_string.at(key);
@@ -632,7 +632,9 @@ Has 2-level grouping capabilities, based on module string (only if it encodes so
 			for( const auto& elem1: mapLevel_1 )
 			{
 				Triplet sumLevel_1;
-				file << "*** " << params.groupKey1_name << ": " << elem1.first << " ***\n\n";
+				file << "*** " << params.groupKey1_name << ": ";
+				printGroupKeyLabel( file, elem1.first, params.groupKey1_pairs );
+				file << " ***\n\n";
 				const auto current = elem1.second;
 				if( params.groupKey2 )
 				{
@@ -659,7 +661,9 @@ Has 2-level grouping capabilities, based on module string (only if it encodes so
 					bigsum     += tot;
 					sumLevel_1 += tot;
 				}
-				file << "* Total " << params.groupKey1_name << ' ' << elem1.first << ": ";
+				file << "* Total " << params.groupKey1_name << ' ';
+				printGroupKeyLabel( file, elem1.first, params.groupKey1_pairs );
+				file << ": ";
 				sumLevel_1.printAsText( file );
 				file << "\n\n";
 			}
@@ -687,7 +691,10 @@ Has 2-level grouping capabilities, based on module string (only if it encodes so
 			file << "Enseignant:" << elem1.first << '\n';
 			bigsum += printTripletMap( file, elem1.second, max_size );
 		}
-		file << "\n*** TOTAL GENERAL ***\n" << bigsum << '\n';
+		file << "\n*** TOTAL GENERAL ***\n";
+		bigsum.printAsText( file );
+		file << "\n";
+
 	}
 
 /// write CSV data
