@@ -64,6 +64,16 @@ Attention cependant, ceci utilise le calcul "classique"
 (CM: coeff. 3/2, TD: coeff. 1, TP: coeff. 2/3),
 et l'application ou non de ce calcul pour la rémunération depend du statut de l'enseignant.
 
+### Configuration
+
+Le programme est adaptable via un fichier texte de type ".ini": adepopro.ini
+Un exemple d'un tel fichier est fourni.
+
+On peut y spécifier:
+* les indices des colonnes dans le fichier d'entrée,
+* les positions des clés à utiliser pour le regroupement dans le rapport par module d'enseignement
+* l'intitulé de regroupement de 1er et 2ème niveau ("semestre", "Unité d'enseignement", "formation", ...), voire ci-dessous.
+
 ### Regroupement de modules ###
 
 Très souvent, le code module d'un enseignement "encode" de façon alphanumérique des informations comme par exemple le semestre, l'unité d'enseignement ou la formation concernée.
@@ -97,28 +107,28 @@ Le fichier de sortie "ME" sera alors découpé en autant de sections qu'il y a d
 ...
 ...
 ...
-* Total Semestre 1: CM: 124.5 h. - TD: 433.5 h. - TP: 1180.5 h., total: 1738.5 h., heqTD: 1407.25 h.
+* Total Semestre 1: CM: 124.5 h. - TD: ...
 ```
 
 Il est aussi possible d'indiquer un intitulé pour chaque regroupement.
 Par exemple, supposons que les codes modules soient de la forme ```ABC1XXX```, ```ABC2XXX```,
-et que le chiffre en 4ème position encode la formation, appelée TATATA (pour "1") ou TITIT (pour "2").
-Alors il sera possible d'avoir un regroupement tel que dans le fichier de sortie, cela apparaisse comme:
+et que le chiffre en 4ème position encode la formation, appelée TATATA (pour "1") ou TITITI (pour "2").
+Alors il sera possible d'avoir un regroupement tel que cela apparaisse comme ceci dans le fichier de sortie:
 
 ```
 *** Formation: TATATA ***
 ...
 ...
 ...
-* Total Formation: TATATA: CM: 124.5 h. - TD: 433.5 h. - TP: 1180.5 h., total: 1738.5 h., heqTD: 1407.25 h.
+* Total Formation: TATATA: CM: 123 h. - TD: ...
 ```
-ou
+et
 ```
 *** Formation: TITITI ***
 ...
 ...
 ...
-* Total Formation: TITITI: CM: 124.5 h. - TD: 433.5 h. - TP: 1180.5 h., total: 1738.5 h., heqTD: 1407.25 h.
+* Total Formation: TITITI: CM: 44 h. - TD:  ...
 ```
 
 Ceci sera paramétré dans le fichier de configuration par les clés ```groupKey1_pairs```
@@ -130,24 +140,11 @@ Pour l'exemple ci-dessus, on mettra:
 groupKey1_pairs=1-TATATA;2-TITITI
 ```
 
-
-
-
 ### Options
 
 Le programme supporte les deux options suivantes:
 * "-s" : le rapport texte par module d'enseignement sera regroupé par sections, voir "Configuration".
 * "-p" : affiche les paramètres de fonctionnement.
-
-### Configuration
-
-Le programme est adaptable via un fichier texte de type ".ini": adepopro.ini
-Un exemple d'un tel fichier est fourni.
-
-On peut y spécifier:
-* les indices des colonnes dans le fichier d'entrée,
-* les positions des clés à utiliser pour le regroupement dans le rapport par module d'enseignement
-* l'intitulé de regroupement de 1er et 2ème niveau ("semestre", "Unité d'enseignement", "formation", ...)
 
 
 S. Kramm - 2018

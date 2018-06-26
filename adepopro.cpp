@@ -72,8 +72,7 @@ getWeekNum( std::string in )
 	assert( !in.empty() );
 	auto v = split_string( in, ' ' );
 	if( v.size() != 2 )
-		std::cout << "in=" << in << '\n';
-	assert( v.size() == 2 );
+		throw std::runtime_error( "Week string must have 2 space separated fields, read this:" + in );
 	return std::stoi( v[1] );
 }
 //-------------------------------------------------------------------
@@ -82,9 +81,11 @@ getWeekDay( std::string in )
 {
 	assert( !in.empty() );
 	auto v = split_string( in, ' ' );
-	assert( v.size() == 2 );
-	auto it = g_daymap.find( v[0]  );
-	assert( it != std::end(g_daymap) );
+	if( v.size() != 2 )
+		throw std::runtime_error( "Date string must have 2 space separated fields, read this:" + in );
+	auto it = g_daymap.find( v[0] );
+	if( it == std::end(g_daymap) )
+		throw std::runtime_error( "Unable to find day: '" + v[0] + "' in allowed days" );
 
 	return it->second;
 }
@@ -95,7 +96,9 @@ float
 getDuration( std::string in )
 {
 	auto v = split_string( in, 'h' );
-	assert( v.size() == 2 );
+	if( v.size() != 2 )
+		throw std::runtime_error( "Time string expects 'h' as separator and two fields, got this: " + in );
+
 	auto h = std::stoi( v[0] );
 	auto mn = std::stoi( v[1] );
 	return static_cast<float>( 1.0*h+1.0*mn/60.0 );
@@ -308,7 +311,6 @@ printTripletMap( std::ofstream& file, const TripletMap& tmap, size_t max_first )
 	file << "CM    TD    TP\n";
 	for( const auto& elem: tmap )
 	{
-//		file << "  - " << elemStr << ": ";
 		file << "  - ";
 		printString( file, elem.first, max_first );
 		file << ": ";
@@ -355,7 +357,7 @@ extractPairs( std::string in_str )
 		if( v_pair.size() != 2 )
 			throw std::runtime_error( "Error, invalid pair in config file, string: '" + in_str + "', symbol '" + elem + "' must have 2 elements" );
 		if( v_pair[0].size() == 0 )
-			throw std::runtime_error( "Error, first element of pair in config file is empty,  pair:" + elem );
+			throw std::runtime_error( "Error, first element of pair in config file is empty, string:" + in_str + ", pair:" + elem );
 
 		pair_map[ v_pair[0].front() ] = v_pair[1];
 	}
