@@ -64,19 +64,20 @@ Attention cependant, ceci utilise le calcul "classique"
 (CM: coeff. 3/2, TD: coeff. 1, TP: coeff. 2/3),
 et l'application ou non de ce calcul pour la rémunération depend du statut de l'enseignant.
 
-### Regroupement demodules ###
+### Regroupement de modules ###
 
-Très souvent, le code module d'un enseignement "encode" de façon alpha numérique des informations comme par exemple le semestre, l'unité d'enseignement ou la formation concernée.
-Dans le fichier-rapport "ME", il est possible de mettre en oeuvre un regroupement avec calcul de sous total sur la base de ces codes, à deux niveaux.
+Très souvent, le code module d'un enseignement "encode" de façon alphanumérique des informations comme par exemple le semestre, l'unité d'enseignement ou la formation concernée.
+Dans le fichier-rapport "ME", il est possible de mettre en oeuvre un regroupement avec calcul de sous total sur la base de ce code, et ce à deux niveaux.
 Attention cependant, ce tri n'est possible que via l'utilisation d'un seul caractère du code-module.
 
-Par exemple, si le code module est de la forme **ABC143** et que le 1er chiffre encode le semestre et le deuxième encode l'unité d'enseignement,
+Par exemple, si le code module est de la forme ```ABC143``` et que le 1er chiffre encode le semestre et le deuxième encode l'unité d'enseignement,
 alors on pourra utiliser ces caractères pour grouper les modules.
 Ceci se paramètre dans le fichier de configuration, via les clés de la section ```[grouping]```:
 Pour activer le regroupement de 1er niveau, il faut mettre la clé ```groupKey1``` à 1.
 De façon similaire (et uniquement si la clé précédente est activée), on pourra activer le  regroupement de 2ème niveau avec ```groupKey2=1```.
 
-Les caractères à considérer dans le code module pour effectuer ce regroupement sont donnés par les clés
+Les caractères à considérer dans le code module pour effectuer ce regroupement sont donnés par leur position dans le code-module,
+et les clés dans le fichier de configuration sont:
 ```groupKey1_pos``` et ```groupKey2_pos``` (indice commencant à 0 pour le 1er caractère de la chaîne).
 
 L'intitulé de ce qu'on veut regrouper est à indiquer dans les clés
@@ -98,6 +99,38 @@ Le fichier de sortie "ME" sera alors découpé en autant de sections qu'il y a d
 ...
 * Total Semestre 1: CM: 124.5 h. - TD: 433.5 h. - TP: 1180.5 h., total: 1738.5 h., heqTD: 1407.25 h.
 ```
+
+Il est aussi possible d'indiquer un intitulé pour chaque regroupement.
+Par exemple, supposons que les codes modules soient de la forme ```ABC1XXX```, ```ABC2XXX```,
+et que le chiffre en 4ème position encode la formation, appelée TATATA (pour "1") ou TITIT (pour "2").
+Alors il sera possible d'avoir un regroupement tel que dans le fichier de sortie, cela apparaisse comme:
+
+```
+*** Formation: TATATA ***
+...
+...
+...
+* Total Formation: TATATA: CM: 124.5 h. - TD: 433.5 h. - TP: 1180.5 h., total: 1738.5 h., heqTD: 1407.25 h.
+```
+ou
+```
+*** Formation: TITITI ***
+...
+...
+...
+* Total Formation: TITITI: CM: 124.5 h. - TD: 433.5 h. - TP: 1180.5 h., total: 1738.5 h., heqTD: 1407.25 h.
+```
+
+Ceci sera paramétré dans le fichier de configuration par les clés ```groupKey1_pairs```
+(ou ```groupKey2_pairs``` pour le regroupement de 2ème niveau).
+Il faudra y spécifier la liste des associations à faire entre le caractère du code module et la chaine de caractère correspondante à associer.
+
+Pour l'exemple ci-dessus, on mettra:
+```
+groupKey1_pairs=1-TATATA;2-TITITI
+```
+
+
 
 
 ### Options

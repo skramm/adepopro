@@ -31,6 +31,8 @@ Command-line options:
 
 /// global Output Char Separator for csv files
 char g_ocs = ';';
+std::string g_rule = "**************************************\n";
+
 //-------------------------------------------------------------------
 enum EN_WeekDay { WD_LUN, WD_MAR, WD_MER, WD_JEU, WD_VEN };
 
@@ -236,8 +238,7 @@ openFile( std::string fn, std::string text, std::string input_fn )
 	file << std::put_time(std::localtime(&time), "%F %T%z")
 		<< "\n# input data file: " << input_fn << '\n';
 
-	std::string rule = "\n**************************************\n";
-	file << "\n" << rule << text << rule ;
+	file << text << '\n';
 
 	return file;
 }
@@ -622,7 +623,8 @@ Has 2-level grouping capabilities, based on module string (only if it encodes so
 */
 	void writeReport_MI( std::string fn, const Params& params )
 	{
-		auto file = openFile( fn + params.rootFileName + ".txt", "Bilan par module", params.inputFileName );
+		auto file = openFile( fn + params.rootFileName + ".txt", "", params.inputFileName );
+		file << g_rule << "Bilan par module\n" << g_rule;
 		auto max_size = findMaxStringSize( _mod_prof );
 
 		Triplet bigsum;
@@ -681,7 +683,9 @@ Has 2-level grouping capabilities, based on module string (only if it encodes so
 /// write report of Instructor / Modules
 	void writeReport_IM( std::string fn, const Params& params )
 	{
-		auto file = openFile( fn + params.rootFileName + ".txt", "Bilan par enseignant", params.inputFileName );
+		auto file = openFile( fn + params.rootFileName + ".txt", "", params.inputFileName );
+		file << g_rule << "Bilan par enseignant\n" << g_rule;
+
 		auto max_size = findMaxStringSize( _prof_mod );
 //		std::cout << __FUNCTION__ << "(): max_size=" << max_size << '\n';
 
