@@ -57,8 +57,8 @@ make
 g++ -std=c++11 -o adepopro adepopro.cpp
 ```
 
-Error handling: at present, in case of malformed input file, an assert is raised and execution stops.
-This could (will ?) be improved.
+**Error handling**: most of the errors are handled with exceptions, an error message is provided so that the user should be able to correct the error.
+Please [post issue on Github](https://github.com/skramm/adepopro/issues) in case of trouble.
 
 
 (1) - ADE-Campus provides an API that theorically could avoid this manual data extraction,

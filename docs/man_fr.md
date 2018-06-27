@@ -57,7 +57,8 @@ Ces fichiers donnent le détail des infos.
 * Le fichier "ME" (*Module/Enseignant*) donne pour chaque module la liste des enseignants qui interviennent, avec le volume correspondant.
 
 Les volumes sont exprimés en heures. Dans les fichiers .csv, ils apparaissent sous la forme:<br>
-```vol_CM;vol_TD;vol_TP;total```
+```vol_CM;vol_TD;vol_TP;total ```
+
 
 Dans les fichiers texte (rapports), les volumes sont également donnés en "heures équivalent TD".
 Attention cependant, ceci utilise le calcul "classique"
@@ -72,7 +73,19 @@ Un exemple d'un tel fichier est fourni.
 On peut y spécifier:
 * les indices des colonnes dans le fichier d'entrée,
 * les positions des clés à utiliser pour le regroupement dans le rapport par module d'enseignement
-* l'intitulé de regroupement de 1er et 2ème niveau ("semestre", "Unité d'enseignement", "formation", ...), voire ci-dessous.
+* l'intitulé de regroupement de 1er et 2ème niveau ("semestre", "Unité d'enseignement", "formation", ...), voir ci-dessous.
+
+
+Il est aussi possible de spécifier le caractère qui encode le type de cours (CM,TD,TP) dans le code module.
+Pour l'instant, ce code est obligatoirement le **dernier** caractère du code-module.
+L'association est spécifiée par les 3 clés:
+```
+courseTypeKey_CM
+courseTypeKey_TD
+courseTypeKey_TP
+```
+
+Les valeurs par défaut sont 'C', 'D', et 'P', respectivement.
 
 ### Regroupement de modules ###
 
