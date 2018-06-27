@@ -69,7 +69,8 @@ split_string( const std::string &s, char delim )
 int
 getWeekNum( std::string in )
 {
-	assert( !in.empty() );
+	if( in.empty() )
+		throw std::runtime_error( "Week string is empty in " + std::string(__FUNCTION__) );
 	auto v = split_string( in, ' ' );
 	if( v.size() != 2 )
 		throw std::runtime_error( "Week string must have 2 space separated fields, read this:" + in );
@@ -79,7 +80,8 @@ getWeekNum( std::string in )
 EN_WeekDay
 getWeekDay( std::string in )
 {
-	assert( !in.empty() );
+	if( in.empty() )
+		throw std::runtime_error( "Week day is empty in " + std::string(__FUNCTION__) );
 	auto v = split_string( in, ' ' );
 	if( v.size() != 2 )
 		throw std::runtime_error( "Date string must have 2 space separated fields, read this:" + in );
@@ -105,13 +107,17 @@ getDuration( std::string in )
 }
 //-------------------------------------------------------------------
 /// Course type: CM/TD/TP
-enum EN_Type { TY_CM, TY_TD, TY_TP };
+enum EN_CourseType {
+	TY_CM,  ///< Lecture (french: "Cours Magistral")
+	TY_TD,  ///< Class (french: "Travaux Dirigés")
+	TY_TP   ///< Lab session (french: "Travaux Pratiques")
+};
 
 enum EN_PrintSum { PrintSumYes, PrintSumNo };
 
 enum EN_PrintEqTd { PrintEqTdYes, PrintEqTdNo };
 
-/// A triplet of course durations (see EN_Type)
+/// A triplet of course durations (see EN_CourseType)
 struct Triplet
 {
 private:
@@ -122,7 +128,7 @@ public:
 	{
 		clear();
 	}
-	Triplet( EN_Type ty, float duration )
+	Triplet( EN_CourseType ty, float duration )
 	{
 		clear();
 		_vol[ty] = duration;
@@ -180,30 +186,6 @@ public:
 	}
 };
 
-//-------------------------------------------------------------------
-/// Returns type of course and course code from string
-/**
-The course code embeds the type: CM/TD/TP, coded as last character.
-For example:
- - \c ABC1234D => D means TD, will return (TY_TD,ABC1234)
- - \c ABC1234C => C means CM
- - \c ABC1234P => P means TP
-*/
-std::pair<EN_Type,std::string>
-getTypeModule( std::string in )
-{
-	assert( in.size()>1 );
-	EN_Type ty;
-	switch( in.back() )
-	{
-		case 'C': ty = TY_CM; break;
-		case 'D': ty = TY_TD; break;
-		case 'P': ty = TY_TP; break;
-		default: assert(0);
-	}
-	std::string module = in.substr( 0, in.size()-1 );
-	return std::make_pair( ty, module );
-}
 //-------------------------------------------------------------------
 /// Holds the data associated to an instructor or a course module
 struct ResourceData
@@ -387,6 +369,7 @@ std::map<ColIndex,std::string> g_colIndexStr = {
 	{ CI_Instructor, "colEns"     },
 	{ CI_Module,     "colModule"  }
 };
+
 //-------------------------------------------------------------------
 /// Holds all the runtime parameters (fields indexes of input file, ...)
 struct Params
@@ -405,6 +388,8 @@ struct Params
 
 	std::string inputFileName;
 	std::string rootFileName;
+
+	std::array<char,3> courseTypeKeys; /// <holds the characters used to encode the course-type in input file.
 
 	private:
 		boost::property_tree::ptree _ptree;
@@ -445,6 +430,10 @@ struct Params
 
 			for( const auto& map_key: g_colIndexStr)
 				colIndex[map_key.first] = _ptree.get<int>( "columns." + map_key.second, colIndex[map_key.first] );
+
+			courseTypeKeys[TY_CM] = _ptree.get<std::string>( "courseType.courseTypeKey_CM", "C" ).at(0);
+			courseTypeKeys[TY_TD] = _ptree.get<std::string>( "courseType.courseTypeKey_TD", "D" ).at(0);
+			courseTypeKeys[TY_TP] = _ptree.get<std::string>( "courseType.courseTypeKey_TP", "P" ).at(0);
 		}
 	}
 	/// Constructor, assigns default values
@@ -494,6 +483,39 @@ struct Params
 		return f;
 	}
 };
+//-------------------------------------------------------------------
+/// Returns type of course and course code from string
+/**
+The course code embeds the type: CM/TD/TP, coded as last character.
+For example:
+ - \c ABC1234D => D means TD, will return (TY_TD,ABC1234)
+ - \c ABC1234C => C means CM
+ - \c ABC1234P => P means TP
+
+The character used to encode the course type can be changed, see Params
+*/
+std::pair<EN_CourseType,std::string>
+getTypeModule( std::string in, const Params& params )
+{
+	if( in.size()<2 )
+		throw std::runtime_error( "Module code must be at least 2 characters:'" + in + "', size=" + std::to_string(in.size() ) );
+
+	EN_CourseType ty;
+	char ct_char = in.back();
+
+	bool found = false;
+	for( size_t i=0; i<3; i++ )
+		if( ct_char == params.courseTypeKeys[i] )
+		{
+			ty = (EN_CourseType)i;
+			found = true;
+		}
+	if( !found )
+		throw std::runtime_error( "invalid character in module code for course type: '" + ct_char + '\'' );
+
+	std::string module = in.substr( 0, in.size()-1 );
+	return std::make_pair( ty, module );
+}
 //-------------------------------------------------------------------
 /// From https://stackoverflow.com/a/4063229/193789
 /// DOES NOT WORK ???
@@ -569,7 +591,7 @@ struct Data
 	ResourceVolumeMap _prof_mod;
 
 /// Add one event to the data
-	void addOne( std::string instr, size_t num_sem, EN_WeekDay wd, const std::pair<EN_Type,std::string>& type_mod, float duration )
+	void addOne( std::string instr, size_t num_sem, EN_WeekDay wd, const std::pair<EN_CourseType,std::string>& type_mod, float duration )
 	{
 		assert( !instr.empty() );
 
@@ -784,7 +806,7 @@ int main( int argc, char* argv[] )
 			{
 //				std::cout << "buff=" << buff << '\n';
 //				std::cout << "line=" << line << " nb champs=" << v_str.size() << " name=" << name << " day=" << (int)weekday << " weeknum=" << week_num << " code=" << code << '\n';
-				auto type_mod = getTypeModule( code );
+				auto type_mod = getTypeModule( code, params );
 //				if( v_str.size() > 9 )
 //					std::cout << "line " << line << ": " << buff << '\n';
 				if( name.empty() )
@@ -795,8 +817,6 @@ int main( int argc, char* argv[] )
 	}
 	results.compute();
 	params.assignFileName( fn_in );
-	auto fn2 = split_string( fn_in, '.' );
-	assert( fn2.size() > 0 );
 
 // csv output file headers
 	std::string head1 = "# Nom;Nb jours;Nb sem;vol. CM;vol. TD;vol. TP;vol. total;";
