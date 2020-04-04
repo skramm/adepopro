@@ -42,7 +42,7 @@ La manip ci-dessous a été testée avec la version 6.5.3
 (On devrait en théorie pouvoir obtenir ces données avec le client Web, mais mes essais ont échoué sur l'aspect "copie": on arrive à afficher dans le client Web la liste des activités placées, mais le CTRL-C/CTRL-V échoue.)
 
 1. Ouvrir ADE Campus, puis ouvrir le projet désiré.
-Sélectionner ensuite "Activités" dans la barre d'outils:
+Sélectionner ensuite "Activités" dans la barre d'outils, et dans la partie droite, l'onglet "placement":
 ![im1](ade_1b.png)
 1. Dans le volet de gauche, sélectionner les formations désirées, puis cliquer sur la première ligne de la liste.<br>
 Vérifier que les champs apparaissent bien dans cet ordre.
@@ -57,7 +57,7 @@ Au besoin, ajouter les champs nécessaires en cliquant sur le bouton entouré en
 
 Vous avez maintenant un fichier CSV, qui pourra être utilisée comme entrée de AdePoPro, comme ceci:
 ```
-adepopro monfichier.csv
+./adepopro monfichier.csv
 ```
 
 En cas de succès, ceci va générer 4 fichiers dans le dossier courant:
